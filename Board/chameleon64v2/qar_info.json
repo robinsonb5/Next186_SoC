@@ -1,0 +1,7 @@
+{
+	"common_dir" : "/home/amr/FPGA/Projects/ChameleonV2/fpga_examples/",
+	"acds_version" : "Version 18.1.0",
+	"platform" : "linux",
+	"os" : "Ubuntu 14.04.3",
+	"qpf" : "quartus/chameleon2/chameleon2_hwtest/chameleon2_hwtest_files/chameleon2_hwtest.qpf"
+}
