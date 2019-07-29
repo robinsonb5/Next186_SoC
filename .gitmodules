@@ -1,0 +1,3 @@
+[submodule "JWasm"]
+	path = JWasm
+	url = https://github.com/JWasm/JWasm.git

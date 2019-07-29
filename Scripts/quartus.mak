@@ -1,9 +1,9 @@
 
 BOARD=de1
-BOARDDIR=../Board/$(BOARD)
+BOARDDIR=Board/$(BOARD)
 PROJECT=HelloWorld
 MANIFEST=manifest.rtl
-SCRIPTSDIR=../Scripts
+SCRIPTSDIR=Scripts
 
 PROJECTDIR=fpga/$(BOARD)
 TARGET=$(PROJECTDIR)/$(PROJECT)
@@ -15,7 +15,7 @@ clean:
 
 $(TARGET).qsf: $(PROJECTDIR) $(MANIFEST)
 	cp $(BOARDDIR)/template.qsf $(TARGET).qsf
-	bash $(SCRIPTSDIR)/expandtemplate_quartus.sh $(MANIFEST) >>$(TARGET).qsf
+	BOARD=$(BOARD) bash $(SCRIPTSDIR)/expandtemplate_quartus.sh $(MANIFEST) >>$(TARGET).qsf
 
 $(TARGET).qpf:
 	echo >$(TARGET).qpf PROJECT_REVISION = \"${PROJECT}\"

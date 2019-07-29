@@ -3,7 +3,6 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.numeric_std.ALL;
  
 library work;
-use work.Toplevel_Config.ALL;
 
 entity MIST_Toplevel is
 	port
@@ -101,6 +100,54 @@ signal sd_cs:	std_logic;
 signal sd_sck:	std_logic;
 signal sd_sdi:	std_logic;
 signal sd_sdo:	std_logic;
+
+
+COMPONENT system
+	PORT
+	(
+		sdr_CLK_out		:	 OUT STD_LOGIC;
+		clk_25		:	 OUT STD_LOGIC;
+		sdr_n_CS_WE_RAS_CAS		:	 OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+		sdr_BA		:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+		sdr_ADDR		:	 OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
+		sdr_DATA		:	 INOUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+		sdr_DQM		:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+		CLK_50MHZ		:	 IN STD_LOGIC;
+		VGA_R		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
+		VGA_G		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
+		VGA_B		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
+		frame_on		:	 OUT STD_LOGIC;
+		VGA_HSYNC		:	 OUT STD_LOGIC;
+		VGA_VSYNC		:	 OUT STD_LOGIC;
+		BTN_RESET		:	 IN STD_LOGIC;
+		BTN_NMI		:	 IN STD_LOGIC;
+		LED		:	 OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		RS232_DCE_RXD		:	 IN STD_LOGIC;
+		RS232_DCE_TXD		:	 OUT STD_LOGIC;
+		RS232_EXT_RXD		:	 IN STD_LOGIC := '1';
+		RS232_EXT_TXD		:	 OUT STD_LOGIC;
+		RS232_HOST_RXD		:	 IN STD_LOGIC :='1';
+		RS232_HOST_TXD		:	 OUT STD_LOGIC;
+		RS232_HOST_RST		:	 OUT STD_LOGIC;
+		SD_n_CS		:	 OUT STD_LOGIC;
+		SD_DI		:	 OUT STD_LOGIC;
+		SD_CK		:	 OUT STD_LOGIC;
+		SD_DO		:	 IN STD_LOGIC;
+		AUD_L		:	 OUT STD_LOGIC;
+		AUD_R		:	 OUT STD_LOGIC;
+		PS2_CLK1		:	 IN STD_LOGIC;
+		PS2_CLK2		:	 IN STD_LOGIC;
+		PS2_DATA1		:	 IN STD_LOGIC;
+		PS2_DATA2		:	 IN STD_LOGIC;
+		PS2_CLK1_nOE		:	 OUT STD_LOGIC;
+		PS2_CLK2_nOE		:	 OUT STD_LOGIC;
+		PS2_DATA1_nOE		:	 OUT STD_LOGIC;
+		PS2_DATA2_nOE		:	 OUT STD_LOGIC;
+		GPIO		:	 INOUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		I2C_SCL		:	 OUT STD_LOGIC;
+		I2C_SDA		:	 INOUT STD_LOGIC
+	);
+END COMPONENT;
 
 -- Sigma Delta audio
 COMPONENT hybrid_pwm_sd
@@ -223,68 +270,64 @@ component sd_card
 
 begin
 
-mypll : entity work.PLL
-port map
-(
-	inclk0 => CLOCK_27(0),
-	c0 => SDRAM_CLK,
-	c1 => sysclk,
-	locked => pll_locked
-);
-
 -- reset from IO controller
 -- status bit 0 is always triggered by the i ocontroller on its own reset
 -- status bit 2 is driven by the "T2,Reset" entry in the config string
 -- button 1 is the core specfic button in the mists front
 reset <= '0' when status(0)='1' or status(2)='1' or buttons(1)='1' or sd_allow_sdhc_changed='1' else '1';
 
-myVirtualToplevel : entity work.VirtualToplevel
-generic map
-(
-	sdram_rows => 13,
-	sdram_cols => 9,
-	sysclk_frequency => 1000
-)
-port map
-(	
-	clk => sysclk,
-	reset_in => reset,
+SDRAM_CKE<='1';
 
-	-- video
-	vga_hsync => core_hs,
-	vga_vsync => core_vs,
-	vga_red => vga_tred,
-	vga_green => vga_tgreen,
-	vga_blue => vga_tblue,
-	vga_window => vga_window,
-	
-	-- sdram
-	sdr_data => SDRAM_DQ,
-	sdr_addr => SDRAM_A,
-	sdr_dqm(1) => SDRAM_DQMH,
-	sdr_dqm(0) => SDRAM_DQML,
-	sdr_we => SDRAM_nWE,
-	sdr_cas => SDRAM_nCAS,
-	sdr_ras => SDRAM_nRAS,
-	sdr_cs => SDRAM_nCS,
-	sdr_ba => SDRAM_BA,
---	sdr_clk => DRAM_CLK,
-	sdr_cke => SDRAM_CKE,
+sys_inst: component system
+	port map (
+		CLK_50MHZ => CLOCK_27(0),
+		unsigned(VGA_R) => core_r,
+		unsigned(VGA_G) => core_g,
+		unsigned(VGA_B) => core_b,
+		VGA_HSYNC => core_hs,
+		VGA_VSYNC => core_vs,
+		clk_25=>sysclk,
+		sdr_CLK_out => SDRAM_CLK,
+		sdr_n_CS_WE_RAS_CAS(3)=>SDRAM_nCS,
+		sdr_n_CS_WE_RAS_CAS(2)=>SDRAM_nWE,
+		sdr_n_CS_WE_RAS_CAS(1)=>SDRAM_nRAS,
+		sdr_n_CS_WE_RAS_CAS(0)=>SDRAM_nCAS,
+		sdr_BA => SDRAM_BA,
+		sdr_ADDR => SDRAM_A,
+		sdr_DATA => SDRAM_DQ,
+		sdr_DQM(1) => SDRAM_DQMH,
+		sdr_DQM(0) => SDRAM_DQML,
+		LED(0) => LED,
+		BTN_RESET=>not reset,
+		BTN_NMI=>'0',
+		RS232_DCE_RXD=>UART_RX,
+		RS232_DCE_TXD=>txd,
+--		.RS232_EXT_RXD(1'b1),
+--		.RS232_EXT_TXD(),
+		SD_n_CS=>sd_cs,
+		SD_DI=>sd_sdi,
+		SD_CK=>sd_sck,
+		SD_DO=>sd_sdo,
+		AUD_L=>AUDIO_L,
+		AUD_R=>AUDIO_R,
 
-	-- RS232
-	rxd => UART_RX,
-	txd => txd,
+	 	PS2_CLK1=>'1', -- ps2k_clk_in,
+-- 	PS2_CLK1_nOE=>ps2k_clk_out,
+		PS2_DATA1=>'1', -- ps2k_dat_in,
+--		PS2_DATA1_nOE=>ps2k_dat_out,
 
-	-- SD Card
-	spi_cs => sd_cs,
-	spi_miso => sd_sdo,
-	spi_mosi => sd_sdi,
-	spi_clk => sd_sck,
- 
-	-- Audio
-	audio_l => audiol,
-	audio_r => audior
-);
+	 	PS2_CLK2=>'1',-- ps2m_clk_in,
+--	   PS2_CLK2_nOE=>ps2m_clk_out,
+		PS2_DATA2=>'1' -- ps2m_dat_in,
+--		PS2_DATA2_nOE=>ps2m_dat_out
+
+--		RS232_HOST_RXD(rs232_rxd),
+--		RS232_HOST_TXD(rs232_txd)
+--		RS232_HOST_RST(),
+--		.GPIO(),
+--		.I2C_SCL(),
+--		.I2C_SDA(),
+	);
 
 UART_TX <= '1';
 
@@ -297,8 +340,8 @@ mist_console_d: component mist_console
 		par_out_data => par_out_data,
 		par_out_strobe => par_out_strobe
 	);
-	
--- status 1 is driven by the "O1,SHDC,enabled,disable" antry in the config string
+
+-- status 1 is driven by the "O1,SHDC,enabled,disable"eantry in the config string
 sd_allow_sdhc <= '1' when status(1)='0' else '0';
 
 -- generate a signal whenever the sdhc flag toggles so we can reset
@@ -349,8 +392,6 @@ sd_card_d: component sd_card
 		sd_sdo => sd_sdo		
 	);
 
--- prevent joystick signals from being optimzed away
-LED <= '0' when ((joy_ana_0 /= joy_ana_1) AND (joy_0 /= joy_1)) else '1';
 	
 user_io_d : user_io
     generic map (STRLEN => CONF_STR'length)
@@ -387,37 +428,9 @@ user_io_d : user_io
 		serial_strobe => par_out_strobe
 );
 
-dither1: if Toplevel_UseVGA=true generate
--- Dither the video down to 4 bits per gun.
-mydither : component video_vga_dither
-	generic map (
-		outbits => 6
-	)
-	port map (
-		clk => sysclk,
-		hsync => core_hs,
-		vsync => core_vs,
-		vid_ena => vga_window,
-		iRed => vga_tred,
-		iGreen => vga_tgreen,
-		iBlue => vga_tblue,
-		std_logic_vector(oRed) => core_r,
-		std_logic_vector(oGreen) => core_g,
-		std_logic_vector(oBlue) => core_b
-	);
-
-end generate;
 
 -- OSD pixel clock from system clock
-process(sysclk)
-variable clk_div : unsigned(7 downto 0);
-begin
-	if rising_edge(sysclk) then
-		clk_div := clk_div + 1;
-   end if;
-
-   osdclk <= clk_div(1);
-end process;
+osdclk<=sysclk;
 
 osd_inst : component osd
   generic map (OSD_COLOR => 6)
@@ -438,33 +451,4 @@ osd_inst : component osd
       vs_out => VGA_VS
     );
  
-
--- Do we have audio?  If so, instantiate a two DAC channels.
-audio2: if Toplevel_UseAudio = true generate
-leftsd: component hybrid_pwm_sd
-	port map
-	(
-		clk => sysclk,
-		n_reset => reset,
-		din => std_logic_vector(not audiol(15) & audiol(14 downto 0)),
-		dout => AUDIO_L
-	);
-	
-rightsd: component hybrid_pwm_sd
-	port map
-	(
-		clk => sysclk,
-		n_reset => reset,
-		din => std_logic_vector(not audior(15) & audior(14 downto 0)),
-		dout => AUDIO_R
-	);
-end generate;
-
--- No audio?  Make the audio pins high Z.
-
-audio3: if Toplevel_UseAudio = false generate
-	AUDIO_L<='Z';
-	AUDIO_R<='Z';
-end generate;
-
 end architecture;

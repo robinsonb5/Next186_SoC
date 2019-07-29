@@ -46,11 +46,6 @@ create_clock -name {clk_50} -period 20.000 -waveform { 0.000 0.500 } [get_ports 
 #**************************************************************
 
 derive_pll_clocks 
-create_generated_clock -name sd1clk_pin -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[1]}] [get_ports {sdram1_clk}]
-create_generated_clock -name sd2clk_pin -source [get_pins {mypll2|altpll_component|auto_generated|pll1|clk[1]}] [get_ports {sdram2_clk}]
-
-create_generated_clock -name slowclk -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[2]}]
-create_generated_clock -name fastclk -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[0]}]
 
 #**************************************************************
 # Set Clock Latency
@@ -67,44 +62,11 @@ derive_clock_uncertainty;
 # Set Input Delay
 #**************************************************************
 
-set_input_delay -clock sd1clk_pin -max 5.8 [get_ports sd1_data*]
-set_input_delay -clock sd2clk_pin -max 5.8 [get_ports sd2_data*]
-set_input_delay -clock sd1clk_pin -min 3.2 [get_ports sd1_data*]
-set_input_delay -clock sd2clk_pin -min 3.2 [get_ports sd2_data*]
-
-set_input_delay -clock slowclk -max 1.0 [get_ports sd_miso]
-set_input_delay -clock slowclk -min 0.5 [get_ports sd_miso]
-
-
 #**************************************************************
 # Set Output Delay
 #**************************************************************
 
-set_output_delay -clock sd1clk_pin -max 2.0 [get_ports sd1*]
-set_output_delay -clock sd2clk_pin -max 2.0 [get_ports sd2*]
-set_output_delay -clock sd1clk_pin -min -0.3 [get_ports sd1*]
-set_output_delay -clock sd2clk_pin -min -0.3 [get_ports sd2*]
-set_output_delay -clock sd1clk_pin -min 0.5 [get_ports sdram1_clk]
-set_output_delay -clock sd1clk_pin -max 0.5 [get_ports sdram1_clk]
-set_output_delay -clock sd2clk_pin -min 0.5 [get_ports sdram2_clk]
-set_output_delay -clock sd2clk_pin -max 0.5 [get_ports sdram2_clk]
-
-set_output_delay -clock fastclk -min 0.5 [get_ports vga*]
-set_output_delay -clock fastclk -max 1.0 [get_ports vga*]
-
-set_output_delay -clock slowclk -min 0.5 [get_ports ps2*]
-set_output_delay -clock slowclk -max 1.0 [get_ports ps2*]
-
-set_output_delay -clock slowclk -min 0.5 [get_ports sd_*]
-set_output_delay -clock slowclk -max 1.0 [get_ports sd_*]
-
-set_output_delay -clock slowclk -min 0.5 [get_ports aud_*]
-set_output_delay -clock slowclk -max 1.0 [get_ports aud_*]
-
-set_output_delay -clock slowclk -min 0.5 [get_ports rs232_txd]
-set_output_delay -clock slowclk -max 1.0 [get_ports rs232_txd]
-
-#**************************************************************
+**************************************************************
 # Set Clock Groups
 #**************************************************************
 
@@ -116,20 +78,31 @@ set_output_delay -clock slowclk -max 1.0 [get_ports rs232_txd]
 
 set_false_path -from [get_keepers {ps2k_clk ps2m_clk ps2k_dat ps2m_dat power_button reset_n rs232_rxd}] -to  *
 
+set_false_path  -from  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[1]}]
+set_false_path  -from  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[1]}]  -to  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[0]}]
+set_false_path  -from  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[1]}]
+set_false_path  -from  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[3]}]
+set_false_path  -from  [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  -to  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[4]}]
+set_false_path  -from  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[0]}] -to [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  
+set_false_path  -from  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[1]}] -to [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  
+set_false_path  -from  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[3]}] -to [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  
+set_false_path  -from  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[4]}] -to [get_clocks {sys_inst|dcm_cpu_inst|altpll_component|auto_generated|pll1|clk[0]}]  
+set_false_path  -from  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[0]}] -to [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[1]}]  
+set_false_path  -from  [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[1]}] -to [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[0]}]  
+set_false_path -from [get_clocks {clk50m}] -to [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[3]}]
+set_false_path -from [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[3]}] -to [get_clocks {clk50m}]
+set_false_path -from [get_clocks {clk50m}] -to [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[1]}]
+set_false_path -from [get_clocks {sys_inst|dcm_system|altpll_component|auto_generated|pll1|clk[1]}] -to [get_clocks {clk50m}]
+
+set_false_path -from [get_registers {system:sys_inst|VGA_SC:sc|planarreq}]
+set_false_path -from [get_registers {sys_inst|CPUUnit|cpu*}] -through [get_nets {sys_inst|CPUUnit|cpu|ALU16|HINIBBLE~0 sys_inst|CPUUnit|cpu|ALU16|HINIBBLE~1 sys_inst|CPUUnit|cpu|ALU16|HINIBBLE~2 sys_inst|CPUUnit|cpu|ALU16|LONIBBLE~0}] -to [get_cells {sys_inst|cache_ctl|cache_addr*}]
+
 #**************************************************************
 # Set Multicycle Path
 #**************************************************************
-
-#set_multicycle_path -from [get_clocks {mypll|altpll_component|auto_generated|pll1|clk[0]}] -to [get_clocks {sd2clk_pin}] -setup -end 2
-#set_multicycle_path -from [get_clocks {mypll2|altpll_component|auto_generated|pll1|clk[0]}] -to [get_clocks {sd2clk_pin}] -setup -end 2
-
-set_multicycle_path -from [get_clocks {sd2clk_pin}] -to [get_clocks {mypll|altpll_component|auto_generated|pll1|clk[0]}] -setup -end 2
-set_multicycle_path -from [get_clocks {sd1clk_pin}] -to [get_clocks {mypll|altpll_component|auto_generated|pll1|clk[0]}] -setup -end 2
-
-set_multicycle_path -from [get_keepers *CACHE*we_reg*] -to [get_keepers *cpu*] -setup -end 2
-set_multicycle_path -from [get_keepers *CACHE*we_reg*] -to [get_keepers *cpu*] -hold -end 2
-set_multicycle_path -from [get_keepers *CACHE*we_reg*] -to [get_keepers *writecache*] -setup -end 2
-set_multicycle_path -from [get_keepers *CACHE*we_reg*] -to [get_keepers *writecache*] -hold -end 2
+set_multicycle_path -from [get_registers {sys_inst|CPUUnit|cpu*}] -setup -start 2
+set_multicycle_path -from [get_registers {sys_inst|CPUUnit|cpu*}] -hold -start 1
 
 #**************************************************************
 # Set Maximum Delay

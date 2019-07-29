@@ -7,7 +7,6 @@ library altera;
 use altera.altera_syn_attributes.all;
 
 library work;
-use work.Toplevel_Config.ALL;
 
 
 entity C3BoardToplevel is
@@ -187,14 +186,14 @@ signal end_of_line : std_logic;
 signal end_of_frame : std_logic;
 
 -- SDRAM - merged signals to make the two chips appear as a single 16-bit wide entity.
-signal sdr_addr : std_logic_vector(11 downto 0);
+signal sdr_addr : std_logic_vector(12 downto 0);
 signal sdr_dqm : std_logic_vector(1 downto 0);
 signal sdr_we : std_logic;
 signal sdr_cas : std_logic;
 signal sdr_ras : std_logic;
 signal sdr_cs : std_logic;
 signal sdr_ba : std_logic_vector(1 downto 0);
--- signal sdr_clk : std_logic;
+signal sdr_clk : std_logic;
 signal sdr_cke : std_logic;
 
 signal ps2m_clk_in : std_logic;
@@ -212,33 +211,56 @@ signal disk_led : unsigned(5 downto 0);
 signal net_led : unsigned(5 downto 0);
 signal odd_led : unsigned(5 downto 0);
 
-signal vga_r : unsigned(7 downto 0);
-signal vga_g : unsigned(7 downto 0);
-signal vga_b : unsigned(7 downto 0);
-signal vga_window : std_logic;
-
 signal audio_l : signed(15 downto 0);
 signal audio_r : signed(15 downto 0);
 
--- Video dither
-COMPONENT video_vga_dither
-	generic (
-		outbits : integer :=4
-		);
-	port (
-		clk : in std_logic;
-		hsync : in std_logic;
-		vsync : in std_logic;
-		vid_ena : in std_logic;
-		iRed : in unsigned(7 downto 0);
-		iGreen : in unsigned(7 downto 0);
-		iBlue : in unsigned(7 downto 0);
-		oRed : out unsigned(outbits-1 downto 0);
-		oGreen : out unsigned(outbits-1 downto 0);
-		oBlue : out unsigned(outbits-1 downto 0)
-	);
-end component;
 
+COMPONENT system
+	PORT
+	(
+		sdr_CLK_out		:	 OUT STD_LOGIC;
+		clk_25		:	 OUT STD_LOGIC;
+		sdr_n_CS_WE_RAS_CAS		:	 OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
+		sdr_BA		:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+		sdr_ADDR		:	 OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
+		sdr_DATA		:	 INOUT STD_LOGIC_VECTOR(15 DOWNTO 0);
+		sdr_DQM		:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
+		CLK_50MHZ		:	 IN STD_LOGIC;
+		VGA_R		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
+		VGA_G		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
+		VGA_B		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
+		frame_on		:	 OUT STD_LOGIC;
+		VGA_HSYNC		:	 OUT STD_LOGIC;
+		VGA_VSYNC		:	 OUT STD_LOGIC;
+		BTN_RESET		:	 IN STD_LOGIC;
+		BTN_NMI		:	 IN STD_LOGIC;
+		LED		:	 OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		RS232_DCE_RXD		:	 IN STD_LOGIC;
+		RS232_DCE_TXD		:	 OUT STD_LOGIC;
+		RS232_EXT_RXD		:	 IN STD_LOGIC := '1';
+		RS232_EXT_TXD		:	 OUT STD_LOGIC;
+		RS232_HOST_RXD		:	 IN STD_LOGIC :='1';
+		RS232_HOST_TXD		:	 OUT STD_LOGIC;
+		RS232_HOST_RST		:	 OUT STD_LOGIC;
+		SD_n_CS		:	 OUT STD_LOGIC;
+		SD_DI		:	 OUT STD_LOGIC;
+		SD_CK		:	 OUT STD_LOGIC;
+		SD_DO		:	 IN STD_LOGIC;
+		AUD_L		:	 OUT STD_LOGIC;
+		AUD_R		:	 OUT STD_LOGIC;
+		PS2_CLK1		:	 IN STD_LOGIC;
+		PS2_CLK2		:	 IN STD_LOGIC;
+		PS2_DATA1		:	 IN STD_LOGIC;
+		PS2_DATA2		:	 IN STD_LOGIC;
+		PS2_CLK1_nOE		:	 OUT STD_LOGIC;
+		PS2_CLK2_nOE		:	 OUT STD_LOGIC;
+		PS2_DATA1_nOE		:	 OUT STD_LOGIC;
+		PS2_DATA2_nOE		:	 OUT STD_LOGIC;
+		GPIO		:	 INOUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+		I2C_SCL		:	 OUT STD_LOGIC;
+		I2C_SDA		:	 INOUT STD_LOGIC
+	);
+END COMPONENT;
 
 -- Sigma Delta audio
 COMPONENT hybrid_pwm_sd
@@ -250,6 +272,8 @@ COMPONENT hybrid_pwm_sd
 		dout		:	 OUT STD_LOGIC
 	);
 END COMPONENT;
+
+signal clk_25 : std_logic;
 
 begin
 
@@ -268,9 +292,9 @@ begin
 	ps2k_clk_in<=ps2k_clk;
 	ps2k_clk <= '0' when ps2k_clk_out='0' else 'Z';
 
-	sd1_addr <= sdr_addr;
+	sd1_addr <= sdr_addr(sd1_addr'high downto 0);
 	sd1_dqm <= sdr_dqm(0);
---	sd1_clk <= sdr_clk;
+	sdram1_clk <= sdr_clk;
 	sd1_we <= sdr_we;
 	sd1_cas <= sdr_cas;
 	sd1_ras <= sdr_ras;
@@ -278,142 +302,84 @@ begin
 	sd1_ba <= sdr_ba;
 	sd1_cke <= sdr_cke;
 
-	sd2_addr <= sdr_addr;
+	sd2_addr <= sdr_addr(sd2_addr'high downto 0);
 	sd2_dqm <= sdr_dqm(1);
---	sd2_clk <= sdr_clk;
+	sdram2_clk <= sdr_clk;
 	sd2_we <= sdr_we;
 	sd2_cas <= sdr_cas;
 	sd2_ras <= sdr_ras;
 	sd2_cs <= sdr_cs;
 	sd2_ba <= sdr_ba;
 	sd2_cke <= sdr_cke;
-		
-	mypll : entity work.Clock_50to100Split
-		port map (
-			inclk0 => clk_50,
-			c0 => clk_fast,
-			c1 => sdram1_clk,
-			c2 => clk,
-			locked => pll1_locked
-		);
-		
-	mypll2 : entity work.Clock_50to100Split_2ndRAM
-		port map (
-			inclk0 => clk_50,
-			c1 => sdram2_clk,
-			locked => pll2_locked
-		);
-
 	
-	myvirtualtoplevel : entity work.VirtualToplevel
-		generic map(
-			sdram_rows => 12,
-			sdram_cols => 10,
-			sysclk_frequency => 1000
-		)
-		port map(
-			clk => clk_fast,
-			slowclk => clk,
-			reset_in => reset_n and power_button and pll1_locked and pll2_locked,
-			
-			-- SDRAM - presenting a single interface to both chips.
-			sdr_addr => sdr_addr,
-			sdr_data(15 downto 8) => sd2_data,
-			sdr_data(7 downto 0) => sd1_data,
-			sdr_ba => sdr_ba,
-			sdr_cke => sdr_cke,
-			sdr_dqm => sdr_dqm,
-			sdr_cs => sdr_cs,
-			sdr_we => sdr_we,
-			sdr_cas => sdr_cas,
-			sdr_ras => sdr_ras,
-			
-			-- VGA
-			vga_red => vga_r,
-			vga_green => vga_g,
-			vga_blue => vga_b,
-			
-			vga_hsync => vga_hsync,
-			vga_vsync => vga_vsync,
-			
-			vga_window => vga_window,
-
-			-- UART
-			rxd => rs232_rxd,
-			txd => rs232_txd,
-				
---			-- PS/2
-			ps2k_clk_in => ps2k_clk_in,
-			ps2k_dat_in => ps2k_dat_in,
-			ps2k_clk_out => ps2k_clk_out,
-			ps2k_dat_out => ps2k_dat_out,
-			ps2m_clk_in => ps2m_clk_in,
-			ps2m_dat_in => ps2m_dat_in,
-			ps2m_clk_out => ps2m_clk_out,
-			ps2m_dat_out => ps2m_dat_out,
-			
-			-- SD Card interface
-			spi_cs => sd_cs,
-			spi_miso => sd_miso,
-			spi_mosi => sd_mosi,
-			spi_clk => sd_clk,
-			
-			-- Audio - FIXME abstract this out, too.
-			audio_l => audio_l,
-			audio_r => audio_r
-			
-			-- LEDs
-		);
-
-
-video: if Toplevel_UseVGA = true generate
-	mydither : component video_vga_dither
-		generic map(
-			outbits => 6
-	)
-		port map(
-			clk=>clk_fast,
-			hsync=>vga_hsync,
-			vsync=>vga_vsync,
-			vid_ena=>vga_window,
-			iRed => vga_r,
-			iGreen => vga_g,
-			iBlue => vga_b,
-			oRed => vga_red,
-			oGreen => vga_green,
-			oBlue => vga_blue
-		);
-end generate;
-
-		-- Do we have audio?  If so, instantiate a two DAC channels.
-audio2: if Toplevel_UseAudio = true generate
-leftsd: component hybrid_pwm_sd
-	port map
-	(
-		clk => clk,
-		n_reset =>  reset_n and pll1_locked and pll2_locked,
-		din(15) => not audio_l(15),
-		din(14 downto 0) => std_logic_vector(audio_l(14 downto 0)),
-		dout => aud_l
-	);
+	sdr_cke<='1';
 	
-rightsd: component hybrid_pwm_sd
-	port map
-	(
-		clk => clk,
-		n_reset =>  reset_n and pll1_locked and pll2_locked,
-		din(15) => not audio_r(15),
-		din(14 downto 0) => std_logic_vector(audio_r(14 downto 0)),
-		dout => aud_r
+--	mypll : entity work.Clock_50to100Split
+--		port map (
+--			inclk0 => clk_50,
+--			c0 => clk_fast,
+--			c1 => sdram1_clk,
+--			c2 => clk,
+--			locked => pll1_locked
+--		);
+		
+--	mypll2 : entity work.Clock_50to100Split_2ndRAM
+--		port map (
+--			inclk0 => clk_50,
+--			c1 => sdram2_clk,
+--			locked => pll2_locked
+--		);
+
+sys_inst: component system
+	port map (
+		CLK_50MHZ => clk_50,
+		unsigned(VGA_R) => vga_red,
+		unsigned(VGA_G) => vga_green,
+		unsigned(VGA_B) => vga_blue,
+		VGA_HSYNC => vga_hsync,
+		VGA_VSYNC => vga_vsync,
+		clk_25=>clk_25,
+		sdr_CLK_out => sdr_clk,
+		sdr_n_CS_WE_RAS_CAS(3)=>sdr_cs,
+		sdr_n_CS_WE_RAS_CAS(2)=>sdr_we,
+		sdr_n_CS_WE_RAS_CAS(1)=>sdr_ras,
+		sdr_n_CS_WE_RAS_CAS(0)=>sdr_cas,
+		sdr_BA => sdr_ba,
+		sdr_ADDR => sdr_addr,
+		sdr_DATA(7 downto 0) => sd1_data,
+		sdr_DATA(15 downto 8) => sd2_data,
+		sdr_DQM => sdr_dqm,
+		LED(3 downto 0) => leds,
+		BTN_RESET=>not power_button,
+		BTN_NMI=>'0',
+		RS232_DCE_RXD=>rs232_rxd,
+		RS232_DCE_TXD=>rs232_txd,
+		RS232_EXT_RXD=>rs232_rxd,
+--		.RS232_EXT_TXD(),
+		SD_n_CS=>sd_cs,
+		SD_DI=>sd_mosi,
+		SD_CK=>sd_clk,
+		SD_DO=>sd_miso,
+		AUD_L=>aud_l,
+		AUD_R=>aud_r,
+
+	 	PS2_CLK1=>ps2k_clk_in,
+ 	   PS2_CLK1_nOE=>ps2k_clk_out,
+		PS2_DATA1=>ps2k_dat_in,
+		PS2_DATA1_nOE=>ps2k_dat_out,
+
+	 	PS2_CLK2=>ps2m_clk_in,
+ 	   PS2_CLK2_nOE=>ps2m_clk_out,
+		PS2_DATA2=>ps2m_dat_in,
+		PS2_DATA2_nOE=>ps2m_dat_out,
+
+		RS232_HOST_RXD=>rs232_rxd
+--		RS232_HOST_TXD(rs232_txd)
+--		RS232_HOST_RST(),
+--		.GPIO(),
+--		.I2C_SCL(),
+--		.I2C_SDA(),
 	);
-end generate;
-
--- No audio?  Make the audio pins high Z.
-
-audio3: if Toplevel_UseAudio = false generate
-	aud_l<='Z';
-	aud_r<='Z';
-end generate;
 
 end RTL;
 
