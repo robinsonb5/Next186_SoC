@@ -542,7 +542,7 @@ Insert          equ     80h
 LCtrDown        equ     1
 LAltDown        equ     2
 SysReqDown      equ     4
-Pause           equ     8
+Paus            equ     8
 ScrLockDown     equ     10h
 NumLockDown     equ     20h
 CapsLockDown    equ     40h
@@ -731,7 +731,7 @@ noIns:
 		test    dl, CtrlDown
 		jz      short SetFlagsKey1
 		mov     dl, bl      ; restore NumLock flag
-		or      dh, Pause   ; set Pause bit
+		or      dh, Paus   ; set Pause bit
 SetFlagsKey1:
 		jmp     SetFlagsKey
 E0Key:
@@ -803,7 +803,7 @@ pushKey:
 		mov     ah, 5
 		int     16h
 		pop     cx
-		and     dh, not Pause    ; clear Pause bit
+		and     dh, not Paus    ; clear Pause bit
 SetFlagsKey:
 		and     cl, not (LastE0 or LastE1)    ; not prefix key code, clear all prefixes
 SetFlags:
@@ -1009,7 +1009,7 @@ noIns:
 		test    dl, CtrlDown
 		jz      short SetFlagsKey1
 		mov     dl, bl      ; restore NumLock flag
-		or      dh, Pause   ; set Pause bit
+		or      dh, Paus   ; set Pause bit
 SetFlagsKey1:
 		jmp     SetFlagsKey
 E0Key:
@@ -1086,7 +1086,7 @@ pushKey:
 		int     16h
 nopush:        
 		pop     cx
-		and     dh, not Pause    ; clear Pause bit
+		and     dh, not Paus    ; clear Pause bit
 SetFlagsKey:
 		and     cl, not (LastE0 or LastE1 or LastF0)    ; not prefix key code, clear all prefixes
 SetFlags:
@@ -1773,7 +1773,7 @@ writecharTTY:
 		ret        
 
 tty:    ; dx=xy, bh=page, al=char, bl=attr, ah=0ah(no attr) or 09h(with attr)
-		test    word ptr KbdFlags2, Pause
+		test    word ptr KbdFlags2, Paus
 		jnz     short tty
 		push    cx
 		cmp     al, 7
@@ -4310,7 +4310,7 @@ KeyCode:
 		dw	0e02fh, 0e02fh, 9500h, 0a400h ;4a - (e0)KP/ <63>
 		dw	273bh, 273ah, 0000h, 2700h ;4c - ; : <64>
 		dw	0c2dh, 0c5fh, 0c1fh, 8200h ;4e - - _ <65>
-		dw	2827h, 2822h, 0000h, 2800h ;52 - ’ “ <66>
+		dw	2827h, 2822h, 0000h, 2800h ;52 - \92 \93 <66>
 		dw	1a5bh, 1a7bh, 1a1bh, 1a00h ;54 - [ { <67>
 		dw	0d3dh, 0d2bh, 0000h, 8300h ;55 - = + <68>	
 		dw	1c0dh, 1c0dh, 1c0ah, 1c00h ;5a - Enter, (E0)KPEnter <69>
