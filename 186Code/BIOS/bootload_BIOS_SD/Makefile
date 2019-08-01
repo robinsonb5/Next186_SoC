@@ -5,15 +5,14 @@ all: bootstrap.mif
 
 clean:
 	rm bootstrap.mif
-	rm bootstrap.BIN
 
 $(AS):
 	make -C $(JWASM_DIR) -f GccUnix.mak
 
-%.mif : %.BIN
-	srec_cat $< -Binary -o $@ -Memory_Initialization_File 32
+%.mif : %.BIN Makefile
+	srec_cat $< -Binary -Byte-Swap 4 -Exclude 0 256 -Offset -256 -o $@ -Memory_Initialization_File 32
 
-%.BIN : %.asm $(AS)
+%.BIN : %.asm $(AS) Makefile
 	$(AS) -bin $<
 
 
