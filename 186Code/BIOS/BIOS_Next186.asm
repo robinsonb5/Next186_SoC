@@ -3896,15 +3896,30 @@ sdverify:
 sdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 		push    sdrblk   ; push proc address (read or verify) on stack
 sdread1:        
-		push    ax
-		mov     al, dl
-		push    ax
-		mov     dl, 51h  ; CMD17
+		push	cs
+		pop	ds
+		cmp	is_sdhc,0	; AMR - scale LBA if not SDHC, multiply by 512, so double then shift left 8 bits
+		jne	read_sdhc
+		add	ax,ax	; dx: ab  ax: cd  - a is ignored
+		adc	dx,dx	; doubled.  Need to shift left by 8
+		mov	dh,dl	; dx: bb  ax: cd
+		xchg	al,ah	; dx: bb  ax: dc
+		push 	00h	; stack: ... 0 0 (lsbs zero, crc zero)
+		jmp	read_cont
+read_sdhc:
+		push    ax	; dx: ab  ax: cd   	stack: .... d c (c is ignored - crc byte)
+		mov     al, dl	; SDHC    dx: ab  ax: cb
+				; normal  dx; db  ax: cb
+read_cont:
+		push    ax	; 			stack: .... b c d c (2nd c ignored - crc byte)
+				; (non sdhc mode)	stack: .... c d 0 0
+		mov     dl, 51h  ; CMD17 dx: ak
 		cmp     cx, 1
 		je      short sdr1s
 		inc     dx      ; CMD18 - multiple sectors
 sdr1s:
-		push    dx
+		push    dx	; SDHC   stack: k a b c d c - command has been successfully built
+				; normal stack: k b c d 0 0
 		mov     si, sp 
 
 		mov     dx, 3dah
@@ -3967,8 +3982,20 @@ sdr1:
 
 ;---------------------  write ----------------------
 sdwrite:   ; DX:AX sector, ES:BX buffer, CX=sectors, returns AX=wrote sectors
+		push	cs
+		pop	ds
+		cmp	is_sdhc,0	; AMR - scale LBA if not SDHC, multiply by 512, so double then shift left 8 bits
+		jne	write_sdhc
+		add	ax,ax	; dx: ab  ax: cd  - a is ignored
+		adc	dx,dx	; doubled.  Need to shift left by 8
+		mov	dh,dl	; dx: bb  ax: cd
+		xchg	al,ah	; dx: bb  ax: dc
+		push 	00h	; stack: ... 0 0 (lsbs zero, crc zero)
+		jmp	write_cont
+write_sdhc:
 		push    ax
 		mov     al, dl
+write_cont:
 		push    ax
 		mov     dl, 58h  ; CMD24
 		cmp     cx, 1
@@ -3984,7 +4011,7 @@ sdw1s:
 		mov     bp, cx       ; save sectors number
 		push    ss
 		pop     ds
-	mov	byte ptr [si+5], 0ffh ; checksum
+		mov	byte ptr [si+5], 0ffh ; checksum
 		call    sdcmd
 		add     sp, 6
 		mov     si, bx
@@ -4022,7 +4049,7 @@ sdwwait:
 		jnz     short sdwms       ; multiple sectors
 
 		cmp     bp, 1
-		je      short sdr1
+		je      sdr1
 		mov     al, 0fdh     ; multiple end transfer
 		call    sdsb 
 		call	sdrb     
@@ -4040,6 +4067,9 @@ sdinit  proc near       ; returns AX = num kilosectors
 		push    si
 		push    di
 		mov     dx, 3dah
+		push    cs
+		pop     ds
+		mov	msgmb,041h
 		mov     cx, 10
 sdinit1:                   ; send 80T
 		call    sdrb
@@ -4055,44 +4085,73 @@ sdinit1:                   ; send 80T
 		dec     ah
 		jnz     short sdexit ; error
 		
+		mov	msgmb,042h
+
 		mov     si, offset SD_CMD8
 		call    sdcmd8T
 		dec     ah
-		jnz     short sdexit ; error
+		jnz     short sdexit ; error  (V1 cards are caught here - support those too?)
 		mov     cl, 4
 		sub     sp, cx
 		mov     di, sp
+		mov	msgmb,043h
 		push    ss
 		pop     ds
 		call    sdrblk
 		pop     ax
 		pop     ax
 		cmp     ah, 0aah
-		jne     short sdexit ; CMD8 error
+		jne     short sdexit ; CMD8 error  (V1 cards also rejected here)
 repinit:        
 		mov     si, offset SD_CMD55
 		push    cs
 		pop     ds
+		mov	msgmb,044h
 		call    sdcmd8T
 		call    sdrb
 		mov     si, offset SD_CMD41
 		call    sdcmd
 		dec     ah
 		jz      short repinit
+
+		mov	msgmb,045h
 		
 		mov     si, offset SD_CMD58
 		call    sdcmd8T
 		mov     cl, 4
 		sub     sp, cx
 		mov     di, sp
+		mov	is_sdhc,1h
+		mov	msgmb,046h
 		push    ss
 		pop     ds
 		call    sdrblk
 		pop     ax
 		test    al, 40h     ; test OCR bit 30 (CCS)
 		pop     ax
-		jz      short sdexit; no SDHC
+		jnz      short skipblksize; Don't set blocksize if we have SDHC
+		push	cs
+		pop	ds
+		mov	msgmb,047h
+		mov	is_sdhc,0h
+		;  Set blocksize to 512 here
+		mov	si, offset SD_CMD16
+		call	sdcmd8T
+		jmp	skipblksize
 
+sdexit: 
+		xor     ax, ax       ; raise CS
+		out     dx, ax
+		call    sdrb
+		pop     di
+		pop     si
+		pop     dx
+		mov     ax, cx       
+		pop     cx
+		pop     ds
+		ret
+
+skipblksize:
 		mov     si, offset SD_CMD9 ; get size info
 		push    cs
 		pop     ds
@@ -4107,31 +4166,29 @@ repinit:
 		mov     di, sp
 		push    ss
 		pop     ds
-		call    sdrblk
+		call    sdrblk	; FIXME - need to handle non-SDHC cards here - likely to be a ballache.
 		mov     cx, [di-10]
 		rol     cx, 8
 		inc     cx
-		mov     sp, di
-sdexit: 
-		xor     ax, ax       ; raise CS
-		out     dx, ax
-		call    sdrb
-		pop     di
-		pop     si
-		pop     dx
-		mov     ax, cx       
-		pop     cx
-		pop     ds
-		ret
+		mov     sp, di	; fixme - should we not restore the 18 bytes allocated earlier?
+		jmp	sdexit
 sdinit endp
-	
+
+is_sdhc	db 0
 SD_CMD0     db  40h, 0, 0, 0, 0, 95h
 SD_CMD8     db  48h, 0, 0, 1, 0aah, 087h
 SD_CMD9     db  49h, 0, 0, 0, 0, 0ffh
 SD_CMD12    db  4ch, 0, 0, 0, 0, 0ffh
+SD_CMD16    db  50h, 0, 0, 2, 00, 0ffh	; Set blocksize to 512
 SD_CMD41    db  69h, 40h, 0, 0, 0, 0ffh
 SD_CMD55    db  77h, 0, 0, 0, 0, 0ffh
 SD_CMD58    db  7ah, 0, 0, 0, 0, 0ffh
+
+;#define cmd_CMD8(x) cmd_write(0x870048,0x1AA)
+;#define cmd_CMD16(x) cmd_write(0xFF0050,x)
+;#define cmd_CMD41(x) cmd_write(0x870069,0x40000000)
+;#define cmd_CMD55(x) cmd_write(0xff0077,0)
+;#define cmd_CMD58(x) cmd_write(0xff007A,0)
 
 
 Pal256:

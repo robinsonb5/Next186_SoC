@@ -1,3 +1,6 @@
 [submodule "JWasm"]
 	path = JWasm
 	url = https://github.com/JWasm/JWasm.git
+[submodule "ZPUFlex"]
+	path = ZPUFlex
+	url = https://github.com/robinsonb5/ZPUFlex.git

@@ -169,8 +169,12 @@ attribute chip_pin of misc_ios_3 : signal is "95,177";
 
 -- Signals internal to the project
 
-signal clk : std_logic;
-signal clk_fast : std_logic;
+signal clk_25 : std_logic;
+signal memclk : std_logic;
+signal clk_cpu : std_logic;
+signal clk_dsp : std_logic;
+signal clk44100x256 : std_logic;
+signal clk14745600 : std_logic;
 signal pll1_locked : std_logic;
 signal pll2_locked : std_logic;
 
@@ -206,6 +210,7 @@ signal ps2k_clk_out : std_logic;
 signal ps2k_dat_in : std_logic;
 signal ps2k_dat_out : std_logic;
 
+signal socleds : std_logic_vector(7 downto 0);
 signal power_led : unsigned(5 downto 0);
 signal disk_led : unsigned(5 downto 0);
 signal net_led : unsigned(5 downto 0);
@@ -214,18 +219,29 @@ signal odd_led : unsigned(5 downto 0);
 signal audio_l : signed(15 downto 0);
 signal audio_r : signed(15 downto 0);
 
+signal reset : std_logic;
+
 
 COMPONENT system
+	Generic
+	(
+		RowBits : integer;
+		CoLBits : integer
+	);
 	PORT
 	(
-		sdr_CLK_out		:	 OUT STD_LOGIC;
-		clk_25		:	 OUT STD_LOGIC;
+		CLK_50MHZ	:	 IN STD_LOGIC;
+		clk_25		:	 in STD_LOGIC;
+		clk_sdr		:	 in STD_LOGIC;
+		clk_cpu		:	 in STD_LOGIC;
+		clk_dsp		:	 in STD_LOGIC;
+		CLK44100x256		:	 in STD_LOGIC;
+		CLK14745600		:	 in STD_LOGIC;
 		sdr_n_CS_WE_RAS_CAS		:	 OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
 		sdr_BA		:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
 		sdr_ADDR		:	 OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
 		sdr_DATA		:	 INOUT STD_LOGIC_VECTOR(15 DOWNTO 0);
 		sdr_DQM		:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
-		CLK_50MHZ		:	 IN STD_LOGIC;
 		VGA_R		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
 		VGA_G		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
 		VGA_B		:	 OUT STD_LOGIC_VECTOR(5 DOWNTO 0);
@@ -273,14 +289,32 @@ COMPONENT hybrid_pwm_sd
 	);
 END COMPONENT;
 
-signal clk_25 : std_logic;
-
 begin
 
-	power_led(5 downto 2)<=unsigned(debugvalue(15 downto 12));
-	disk_led(5 downto 2)<=unsigned(debugvalue(11 downto 8));
-	net_led(5 downto 2)<=unsigned(debugvalue(7 downto 4));
-	odd_led(5 downto 2)<=unsigned(debugvalue(3 downto 0));
+	myleds : entity work.statusleds_pwm
+	port map(
+		clk => clk_25,
+		power_led => power_led,
+		disk_led => disk_led,
+		net_led => net_led,
+		odd_led => odd_led,
+		leds_out => leds
+	);
+	
+	myreset : entity work.poweronreset
+		port map(
+			clk => clk_25,
+			reset_button => '1',
+			reset_out => reset,
+			power_button => power_button,
+			power_hold => power_hold		
+		);
+
+
+	power_led(5 downto 0)<=unsigned(socleds(7 downto 6)&"0000");
+	disk_led(5 downto 0)<=unsigned(socleds(5 downto 4)&"0000");
+	net_led(5 downto 0)<=unsigned(socleds(3 downto 2)&"0000");
+	odd_led(5 downto 0)<=unsigned(socleds(1 downto 0)&"0000");
 
 	ps2m_dat_in<=ps2m_dat;
 	ps2m_dat <= '0' when ps2m_dat_out='0' else 'Z';
@@ -294,7 +328,7 @@ begin
 
 	sd1_addr <= sdr_addr(sd1_addr'high downto 0);
 	sd1_dqm <= sdr_dqm(0);
-	sdram1_clk <= sdr_clk;
+--	sdram1_clk <= sdr_clk;
 	sd1_we <= sdr_we;
 	sd1_cas <= sdr_cas;
 	sd1_ras <= sdr_ras;
@@ -304,7 +338,7 @@ begin
 
 	sd2_addr <= sdr_addr(sd2_addr'high downto 0);
 	sd2_dqm <= sdr_dqm(1);
-	sdram2_clk <= sdr_clk;
+--	sdram2_clk <= sdr_clk;
 	sd2_we <= sdr_we;
 	sd2_cas <= sdr_cas;
 	sd2_ras <= sdr_ras;
@@ -314,32 +348,50 @@ begin
 	
 	sdr_cke<='1';
 	
---	mypll : entity work.Clock_50to100Split
---		port map (
---			inclk0 => clk_50,
---			c0 => clk_fast,
---			c1 => sdram1_clk,
---			c2 => clk,
---			locked => pll1_locked
---		);
+	mypll : entity work.Clock_50to100Split
+		port map (
+			inclk0 => clk_50,
+			c0 => clk_25,
+			c1 => memclk, -- the same as c1,
+			c2 => sdram1_clk, -- as fast as we can get away with.  133Mhz?
+			locked => pll1_locked
+		);
 		
---	mypll2 : entity work.Clock_50to100Split_2ndRAM
---		port map (
---			inclk0 => clk_50,
---			c1 => sdram2_clk,
---			locked => pll2_locked
---		);
+	mypll2 : entity work.Clock_50to100Split_2ndRAM
+		port map (
+			inclk0 => clk_50,
+			c0 => clk_cpu, -- About 60Mhz?
+			c1 => clk_dsp, -- About 60MHz?
+			c2 => sdram2_clk, -- must match pll1 c1 exactly.
+			locked => pll2_locked
+		);
+		
+	mypll3 : entity work.Clock_50toSlowClocks
+		port map (
+			inclk0 => clk_50,
+			c0 => clk44100x256, -- 11.2896Mhz
+			c1 => clk14745600 -- 14.6756 MHz
+		);
 
+			
 sys_inst: component system
+	generic map (
+		RowBits => 12,
+		ColBits => 10
+	)
 	port map (
 		CLK_50MHZ => clk_50,
+		clk_25=>clk_25,
+		clk_sdr => memclk,
+		clk_cpu => clk_cpu,
+		clk_dsp => clk_dsp,
+		CLK44100x256 => clk44100x256,
+		CLK14745600=>clk14745600,
 		unsigned(VGA_R) => vga_red,
 		unsigned(VGA_G) => vga_green,
 		unsigned(VGA_B) => vga_blue,
 		VGA_HSYNC => vga_hsync,
 		VGA_VSYNC => vga_vsync,
-		clk_25=>clk_25,
-		sdr_CLK_out => sdr_clk,
 		sdr_n_CS_WE_RAS_CAS(3)=>sdr_cs,
 		sdr_n_CS_WE_RAS_CAS(2)=>sdr_we,
 		sdr_n_CS_WE_RAS_CAS(1)=>sdr_ras,
@@ -349,8 +401,8 @@ sys_inst: component system
 		sdr_DATA(7 downto 0) => sd1_data,
 		sdr_DATA(15 downto 8) => sd2_data,
 		sdr_DQM => sdr_dqm,
-		LED(3 downto 0) => leds,
-		BTN_RESET=>not power_button,
+		LED => socleds,
+		BTN_RESET=>not reset,
 		BTN_NMI=>'0',
 		RS232_DCE_RXD=>rs232_rxd,
 		RS232_DCE_TXD=>rs232_txd,
