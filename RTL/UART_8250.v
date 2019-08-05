@@ -110,7 +110,7 @@ module UART_8250(
 	  .empty(wempty) // output empty
 	);
 	
-	q16 rs232_rd
+	q16 rs232_rd	// FIXME - AMR can we replace this with logic to free up some blockram?
 	(
 	  .wrclk(CLK_18432000), // input wr_clk
 	  .rdclk(clk), // input rd_clk

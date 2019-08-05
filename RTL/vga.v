@@ -262,7 +262,7 @@ module VGA_CRT(
 	initial vde = 10'h18f;	// 400 lines
 	
 	reg [4:0]idx_buf = 0;
-	reg [7:0]store[5'h18:0];
+	reg [7:0]store[5'h18:0] /* synthesis ramstyle = "logic" */;
 	wire [4:0]index = addr ? idx_buf : din[4:0];
 	wire [7:0]data = addr ? din[7:0] : din[15:8];
 	reg [7:0]dout1;
@@ -347,7 +347,7 @@ module VGA_GC(
 	initial color_dont_care = 4'b1111;
 	
 	reg [3:0]idx_buf = 0;
-	reg [7:0]store[8:0];
+	reg [7:0]store[8:0] /* synthesis ramstyle = "logic" */;
 	wire [3:0]index = addr ? idx_buf : din[3:0];
 	wire [7:0]data = addr ? din[7:0] : din[15:8];
 	reg [7:0]dout1;

@@ -227,7 +227,7 @@ module seg_map(
 									18, 19, 20, 21,
 									22,	// HMA
 									1, 2, 3, 4, 5, 6, 7, 8, 9, 
-									10, 11, 12, 13, 14, 15}; // VGA seg 1..6			
+									10, 11, 12, 13, 14, 15} /* synthesis ramstyle = "logic" */; // VGA seg 1..6			
 	reg [15:0]vga_seg = 16'h0000;
 	assign memdata = map[memaddr];
 	assign vga_planar_seg = vga_seg[seg_addr];

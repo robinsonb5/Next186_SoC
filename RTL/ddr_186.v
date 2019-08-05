@@ -202,6 +202,7 @@ module system
 
 	parameter ColBits=9;	// column bits
 	parameter RowBits=13;	// row bits
+	parameter enableDSP=1;
 	 
 	initial SD_n_CS = 1'b1;
 	
@@ -277,9 +278,9 @@ module system
 //	wire CLK44100x256;
 	wire sq_full; // sound queue full
 	wire dss_full;
-	wire [15:0]cpu32_data;
-	wire cpu32_halt;
-		
+	wire [15:0]cpu32_data = 16'h0000;
+	wire cpu32_halt=1'b0;
+	
 	reg [1:0]cntrl0_user_command_register = 0;
 	reg [16:0]vga_ddr_row_col = 0; // video buffer offset (multiple of 4)
 	reg s_prog_full;
@@ -418,7 +419,7 @@ module system
 	assign PORT_IN[15:8] = 
 		({8{MEMORY_MAP}} & {7'b0000000, memmap[8]}) |
 		({8{INPUT_STATUS_OE}} & SDI) |
-		({8{CPU32_PORT}} & cpu32_data[15:8]) | 
+		({8{CPU32_PORT}} & enableDSP ? cpu32_data[15:8] : 8'h00) | 
 		({8{JOYSTICK}} & GPIOState) |
 		({8{I2C_SELECT}} & i2cdout);
 
@@ -744,19 +745,24 @@ defparam SDR.ColBits = ColBits;
 		.AUDIO_L(AUD_L),
 		.AUDIO_R(AUD_R)
 	);
-	 
-	DSP32 DSP32_inst
-	(
-		.clkcpu(clk_cpu),
-		.clkdsp(clk_dsp),
-		.cmd(PORT_ADDR[0]), // port 2=data, port 3=cmd (word only)
-		.ce(IORQ & CPU_CE & CPU32_PORT & WORD),
-		.wr(WR),
-		.din(CPU_DOUT),
-		.dout(cpu32_data),
-		.halt(cpu32_halt)
-	);
 	
+generate
+	if(enableDSP)
+	begin
+		DSP32 DSP32_inst
+		(
+			.clkcpu(clk_cpu),
+			.clkdsp(clk_dsp),
+			.cmd(PORT_ADDR[0]), // port 2=data, port 3=cmd (word only)
+			.ce(IORQ & CPU_CE & CPU32_PORT & WORD),
+			.wr(WR),
+			.din(CPU_DOUT),
+			.dout(cpu32_data),
+			.halt(cpu32_halt)
+		);
+	end
+endgenerate
+
 	UART_8250 UART(
 		.CLK_18432000(CLK14745600),
 		.RS232_DCE_RXD(RX),

@@ -139,7 +139,7 @@ module opl3seq(
 //     .addrb(OPL3Struct_offset + {1'b1, ram_CHindex, ram_OPindex, ram_offset[5:1]})
 	assign ram_addr = (ram_OPindex ? (OPL3Struct_base + 6'd24) : OPL3Struct_base) + {ram_CHindex + {ram_CHindex, ram_offset[5]}, ram_offset[4:1]};
 
-   reg [4:0]lfo_am_table[`LFO_AM_TAB_ELEMENTS-1:0];
+   reg [4:0]lfo_am_table[`LFO_AM_TAB_ELEMENTS-1:0] /* synthesis ramstyle = "logic" */;
    initial $readmemh("am.mem", lfo_am_table);
 /*    = { 
       0,0,0,0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4, 5,5,5,5, 6,6,6,6, 7,7,7,7, 8,8,8,8, 9,9,9,9, 10,10,10,10, 11,11,11,11, 12,12,12,12, 13,13,13,13, 14,14,14,14,
@@ -148,7 +148,7 @@ module opl3seq(
       11,11,11,11, 10,10,10,10, 9,9,9,9, 8,8,8,8, 7,7,7,7, 6,6,6,6, 5,5,5,5, 4,4,4,4, 3,3,3,3, 2,2,2,2, 1,1,1,1
    };*/
 
-   reg signed [3:0]lfo_pm_table[127:0];
+   reg signed [3:0]lfo_pm_table[127:0] /* synthesis ramstyle = "logic" */;  // Logic anyway due to size
    initial $readmemh("pm.mem", lfo_pm_table);
 /*    = {
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,-1, 0, 0, 0, 1, 0, 0, 0,-1, 0, 0, 0, 2, 1, 0,-1,-2,-1, 0, 1, 1, 0, 0, 0,-1, 0, 0, 0, 3, 1, 0,-1,-3,-1, 0, 1,

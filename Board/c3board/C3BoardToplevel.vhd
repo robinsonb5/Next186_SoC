@@ -226,7 +226,8 @@ COMPONENT system
 	Generic
 	(
 		RowBits : integer;
-		CoLBits : integer
+		CoLBits : integer;
+		enableDSP : integer
 	);
 	PORT
 	(
@@ -377,7 +378,8 @@ begin
 sys_inst: component system
 	generic map (
 		RowBits => 12,
-		ColBits => 10
+		ColBits => 10,
+		enableDSP => 0 -- The BlockRAM's better spent on debugging for now.
 	)
 	port map (
 		CLK_50MHZ => clk_50,
