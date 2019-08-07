@@ -375,7 +375,7 @@ begin
 		);
 
 			
-sys_inst: component system
+sys_inst: entity work.Next186SOCWrapper
 	generic map (
 		RowBits => 12,
 		ColBits => 10,

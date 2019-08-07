@@ -92,9 +92,10 @@ begin label far               ; this code is placed at F000:BOOTOFFSET
 		out		40h, al
 		out		40h, al       ; program PIT for RS232
 
-		call		sdinit_
-		test		ax, ax
-		jz		short RS232
+		jmp		RS232
+;		call		sdinit_
+;		test		ax, ax
+;		jz		short RS232
 		mov		dx, ax
 		shr		dx, 6
 		shl		ax, 10

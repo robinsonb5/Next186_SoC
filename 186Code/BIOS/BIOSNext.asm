@@ -189,7 +189,14 @@ font8x14	equ	font8x16 - 0e00h
 
 
 		org 0e000h
-bios:        
+bios:
+
+; AMR - Bootloader will patch in these values
+is_sdhc     db 0
+sdsize_hi db 0,0
+sdsize_lo db 0,0
+have_sd     db 1
+     
 biosmsg     db 'Next186 Chameleon SoC PC BIOS (C) 2017 Nicolae Dumitrache', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
@@ -441,7 +448,7 @@ nomousemsg:
 
 msgmouse    db 'PS2 Mouse detected', 13, 10, 0        
 bioscont    db 13, 10, 'CPU: 80186 50Mhz (50MIPS, 100Mhz 32bit bus)', 13, 10
-            db 'RAM: 32MB SDR 185Mhz 16bit', 13, 10
+            db 'RAM: 32MB SDRAM 16bit', 13, 10
             db 'Cache: 8KB, 4-way, 128x64 bytes data/inst', 13, 10
 			db 'HD0: ', 0
 
@@ -4170,11 +4177,10 @@ skipblksize:
 		mov     cx, [di-10]
 		rol     cx, 8
 		inc     cx
-		mov     sp, di	; fixme - should we not restore the 18 bytes allocated earlier?
+		mov     sp, di	; di has been incremented by sdrblk, yes?
 		jmp	sdexit
 sdinit endp
 
-is_sdhc	db 0
 SD_CMD0     db  40h, 0, 0, 0, 0, 95h
 SD_CMD8     db  48h, 0, 0, 1, 0aah, 087h
 SD_CMD9     db  49h, 0, 0, 0, 0, 0ffh
