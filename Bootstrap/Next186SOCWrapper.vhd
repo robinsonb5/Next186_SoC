@@ -156,62 +156,62 @@ bootstrap_inst : work.Bootstrap
 		host_reset => host_reset
 	);
 
---
---sys_inst: component system
---	generic map (
---		RowBits => RowBits,
---		ColBits => ColBits,
---		enableDSP => enableDSP -- The BlockRAM's better spent on debugging for now.
---	)
---	port map (
---		CLK_50MHZ => CLK_50MHz,
---		clk_25=>clk_25,
---		clk_sdr => clk_sdr,
---		clk_cpu => clk_cpu,
---		clk_dsp => clk_dsp,
---		CLK44100x256 => CLK44100x256,
---		CLK14745600=>CLK14745600,
---		VGA_R => VGA_R,
---		VGA_G => VGA_G,
---		VGA_B => VGA_B,
---		VGA_HSYNC => VGA_HSYNC,
---		VGA_VSYNC => VGA_VSYNC,
---		sdr_n_CS_WE_RAS_CAS=>sdr_n_CS_WE_RAS_CAS,
---		sdr_BA => sdr_BA,
---		sdr_ADDR => sdr_addr,
---		sdr_DATA => sdr_DATA,
---		sdr_DQM => sdr_DQM,
---		LED => LED,
---		BTN_RESET=>not host_reset,
---		BTN_NMI=>BTN_NMI,
---		RS232_DCE_RXD=>rs232_from_bootstrap,
-----		RS232_DCE_TXD=>RS232_DCE_TXD,
---		RS232_EXT_RXD=>RS232_EXT_RXD,
-----		.RS232_EXT_TXD(),
---		SD_n_CS=>spi_host_cs,
---		SD_DI=>spi_host_mosi,
---		SD_CK=>spi_host_clk,
---		SD_DO=>SD_DO,
---		AUD_L=>AUD_L,
---		AUD_R=>AUD_R,
---
---	 	PS2_CLK1=>PS2_CLK1,
--- 	   PS2_CLK1_nOE=>PS2_CLK1_nOE,
---		PS2_DATA1=>PS2_DATA1,
---		PS2_DATA1_nOE=>PS2_DATA1_nOE,
---
---	 	PS2_CLK2=>PS2_CLK2,
--- 	   PS2_CLK2_nOE=>PS2_CLK2_nOE,
---		PS2_DATA2=>PS2_DATA2,
---		PS2_DATA2_nOE=>PS2_DATA2_nOE,
---
---		RS232_HOST_RXD=>RS232_HOST_RXD
-----		RS232_HOST_TXD(rs232_txd)
-----		RS232_HOST_RST(),
-----		.GPIO(),
-----		.I2C_SCL(),
-----		.I2C_SDA(),
---	);
---
+
+sys_inst: component system
+	generic map (
+		RowBits => RowBits,
+		ColBits => ColBits,
+		enableDSP => enableDSP -- The BlockRAM's better spent on debugging for now.
+	)
+	port map (
+		CLK_50MHZ => CLK_50MHz,
+		clk_25=>clk_25,
+		clk_sdr => clk_sdr,
+		clk_cpu => clk_cpu,
+		clk_dsp => clk_dsp,
+		CLK44100x256 => CLK44100x256,
+		CLK14745600=>CLK14745600,
+		VGA_R => VGA_R,
+		VGA_G => VGA_G,
+		VGA_B => VGA_B,
+		VGA_HSYNC => VGA_HSYNC,
+		VGA_VSYNC => VGA_VSYNC,
+		sdr_n_CS_WE_RAS_CAS=>sdr_n_CS_WE_RAS_CAS,
+		sdr_BA => sdr_BA,
+		sdr_ADDR => sdr_addr,
+		sdr_DATA => sdr_DATA,
+		sdr_DQM => sdr_DQM,
+		LED => LED,
+		BTN_RESET=>not host_reset,
+		BTN_NMI=>BTN_NMI,
+		RS232_DCE_RXD=>rs232_from_bootstrap,
+--		RS232_DCE_TXD=>RS232_DCE_TXD,
+		RS232_EXT_RXD=>RS232_EXT_RXD,
+--		.RS232_EXT_TXD(),
+		SD_n_CS=>spi_host_cs,
+		SD_DI=>spi_host_mosi,
+		SD_CK=>spi_host_clk,
+		SD_DO=>SD_DO,
+		AUD_L=>AUD_L,
+		AUD_R=>AUD_R,
+
+	 	PS2_CLK1=>PS2_CLK1,
+ 	   PS2_CLK1_nOE=>PS2_CLK1_nOE,
+		PS2_DATA1=>PS2_DATA1,
+		PS2_DATA1_nOE=>PS2_DATA1_nOE,
+
+	 	PS2_CLK2=>PS2_CLK2,
+ 	   PS2_CLK2_nOE=>PS2_CLK2_nOE,
+		PS2_DATA2=>PS2_DATA2,
+		PS2_DATA2_nOE=>PS2_DATA2_nOE,
+
+		RS232_HOST_RXD=>RS232_HOST_RXD
+--		RS232_HOST_TXD(rs232_txd)
+--		RS232_HOST_RST(),
+--		.GPIO(),
+--		.I2C_SCL(),
+--		.I2C_SDA(),
+	);
+
 
 end architecture;

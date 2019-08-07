@@ -98,7 +98,6 @@ process(clk)
 begin
 	if reset_in='0' then
 		reset_counter<=X"FFFF";
-		divert_sdcard<='1';
 		reset<='0';
 	elsif rising_edge(clk) then
 		reset_counter<=reset_counter-1;
@@ -238,6 +237,7 @@ begin
 	if reset='0' then
 		spi_cs<='1';
 		spi_active<='0';
+		divert_sdcard<='1';
 	elsif rising_edge(clk) then
 		mem_busy<='1';
 		ser_txgo<='0';
@@ -257,6 +257,11 @@ begin
 							
 						when X"C4" => -- Bootstrap UART
 							ser_txdata<=mem_write(7 downto 0);
+							ser_txgo<='1';
+							mem_busy<='0';
+
+						when X"C8" => -- System control
+							divert_sdcard<=mem_write(0);
 							ser_txgo<='1';
 							mem_busy<='0';
 

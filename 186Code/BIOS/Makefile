@@ -3,19 +3,18 @@ AS=$(JWASM_DIR)/GccUnixR/jwasm
 
 PRJ=BIOSNext
 
-all: $(PRJ).BIN
+all: $(PRJ).186
 
 clean:
-	rm $(PRJ).mif
+	rm $(PRJ).186
 	rm $(PRJ).BIN
 
 $(AS):
 	make -C $(JWASM_DIR) -f GccUnix.mak
 
-%.mif : %.186
-	srec_cat $< -Binary -o $@ -Memory_Initialization_File 32
-
-%.BIN : %.asm $(AS)
+%.186 : %.asm $(AS)
 	$(AS) -bin $<
+	mv $*.BIN $@
+
 
 

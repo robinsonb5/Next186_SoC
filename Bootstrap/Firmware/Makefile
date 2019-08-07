@@ -41,7 +41,7 @@ LFLAGS  = -nostartfiles -nostdlib -Wl,--relax -Os -Wl,-Map,$(MAIN_PRJ).map
 
 
 # Our target.
-all: $(BUILD_DIR) $(MAIN_PRJ).bin $(MAIN_PRJ)_ROM.vhd $(MAIN_PRJ).rpt
+all: $(BUILD_DIR) $(MAIN_PRJ).bin $(MAIN_PRJ)_ROM1.vhd $(MAIN_PRJ).rpt
 
 clean:
 	rm -f $(BUILD_DIR)/*.o *.hex *.elf *.map *.lst *.srec $(MAIN_PRJ).rom *~ */*.o *.bin
@@ -63,10 +63,17 @@ clean:
 $(ROMGEN): $(ZPUFLEXDIR)/Firmware/zpuromgen.c
 	gcc -o $(ZPUFLEXDIR)/Firmware/zpuromgen $(ZPUFLEXDIR)/Firmware/zpuromgen.c
 
-%_ROM.vhd: %.bin $(ROMGEN)
-	sed 's/dualportram/$*_ROM/' >$*_ROM.vhd <$(RTL_DIR)/rom_prologue.vhd
-	$(ROMGEN) $*.bin >>$*_ROM.vhd
-	cat >>$*_ROM.vhd $(RTL_DIR)/rom_epilogue.vhd
+%_ROM1.vhd: %.bin $(ROMGEN)
+#	sed 's/dualportram/$*_ROM/' >$*_ROM.vhd <$(RTL_DIR)/rom_prologue.vhd
+#	$(ROMGEN) $*.bin >>$*_ROM.vhd
+#	cat >>$*_ROM.vhd $(RTL_DIR)/rom_epilogue.vhd
+#	Experimental: split the ROM into two parts to reduce block RAM usage.
+	sed 's/dualportram/$*_ROM1/' >$*_ROM1.vhd <$(RTL_DIR)/rom_prologue.vhd
+	$(ROMGEN) -l4096 $*.bin >>$*_ROM1.vhd
+	cat >>$*_ROM1.vhd $(RTL_DIR)/rom_epilogue.vhd
+	sed 's/dualportram/$*_ROM2/' >$*_ROM2.vhd <$(RTL_DIR)/rom_prologue.vhd
+	$(ROMGEN) -o4096 -l1024 $*.bin >>$*_ROM2.vhd
+	cat >>$*_ROM2.vhd $(RTL_DIR)/rom_epilogue.vhd
 
 # Link - this produces an ELF binary.
 

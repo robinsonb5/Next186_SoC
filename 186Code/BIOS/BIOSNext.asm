@@ -192,16 +192,16 @@ font8x14	equ	font8x16 - 0e00h
 bios:
 
 ; AMR - Bootloader will patch in these values
+Tag	db '186',0	; Tag version 0
+sdsize_lo dw 0	; little endian
+sdsize_hi dw 0
 is_sdhc     db 0
-sdsize_hi db 0,0
-sdsize_lo db 0,0
-have_sd     db 1
-     
+
 biosmsg     db 'Next186 Chameleon SoC PC BIOS (C) 2017 Nicolae Dumitrache', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
 
-		org 0e05bh
+		org 0e062h ; 5b
 coldboot:
 warmboot:
 		cli
@@ -414,8 +414,21 @@ COMFlush:
         jc      short COMFlush
 
 ; ---------------------   HDD init
+; AMR - since we were bootstrapped from SD card, the card is already initialised.
+; The bootloader patched the BIOS image with parameters.
+
 		call    sdinit
-		mov     HDSize, ax
+;		mov     HDSize, ax
+		push	ds
+		push	cs
+		pop	ds
+		mov	ax,sdsize_lo
+		mov	bx,sdsize_hi
+		shr	ax,10
+		shl	bx,6
+		or	ax,bx
+		pop	ds
+		mov	HDSize, ax
 		push    cs
 		pop     es
 		mov     si, offset biosmsg
@@ -4068,6 +4081,9 @@ sdwwait1:
 		
 ;---------------------  init SD ----------------------
 sdinit  proc near       ; returns AX = num kilosectors
+
+;	AMR - reduce to just selecting the SD
+
 		push    ds
 		push    cx
 		push    dx
@@ -4076,11 +4092,12 @@ sdinit  proc near       ; returns AX = num kilosectors
 		mov     dx, 3dah
 		push    cs
 		pop     ds
-		mov	msgmb,041h
 		mov     cx, 10
 sdinit1:                   ; send 80T
 		call    sdrb
 		loop    short sdinit1
+
+		jmp	sdexit
 
 		mov     ah, 1
 		out     dx, ax       ; select SD

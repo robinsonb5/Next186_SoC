@@ -1,7 +1,8 @@
 #include "spi.h"
 #include "small_printf.h"
 
-int SDHCtype;
+int sd_is_sdhc;
+int sd_size;
 
 // #define SPI_WAIT(x) while(HW_PER(PER_SPI_CS)&(1<<PER_SPI_BUSY));
 // #define SPI(x) {while((HW_PER(PER_SPI_CS)&(1<<PER_SPI_BUSY))); HW_PER(PER_SPI)=(x);}
@@ -58,7 +59,7 @@ int cmd_write(unsigned long cmd, unsigned long lba)
 
 	SPI(cmd & 255);
 
-	if(!SDHCtype)	// If normal SD then we have to use byte offset rather than LBA offset.
+	if(!sd_is_sdhc)	// If normal SD then we have to use byte offset rather than LBA offset.
 		lba<<=9;
 
 	PDBG("LBA %x, ",lba);
@@ -220,7 +221,7 @@ int spi_init()
 {
 	int i;
 	int r;
-	SDHCtype=1;
+	sd_is_sdhc=1;
 	SPI_CS(0);	// Disable CS
 	spi_spin();
 	puts("SPI");
@@ -239,8 +240,8 @@ int spi_init()
 		}
 	}
 	DBG("Card responded to reset\n");
-	SDHCtype=is_sdhc();
-	if(SDHCtype)
+	sd_is_sdhc=is_sdhc();
+	if(sd_is_sdhc)
 		DBG("SDHC card detected\n");
 	else // If not SDHC, Set blocksize to 512 bytes
 	{
@@ -249,7 +250,7 @@ int spi_init()
 	}
 	SPI(0xFF);
 
-	i=sd_get_size();
+	sd_size=sd_get_size();
 	printf("SD card size is %d\n",i);
 
 
