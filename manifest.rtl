@@ -33,4 +33,14 @@ cache.qip
 dd_buf.qip
 opl3_mem.qip
 opl3_in.qip
+../Bootstrap/Next186SOCWrapper.vhd
+../ZPUFlex/RTL/zpu_core_flex.vhd
+../ZPUFlex/RTL/zpupkg.vhd
+../Bootstrap/Bootstrap.vhd
+../Bootstrap/spi.vhd
+../Bootstrap/simple_uart.vhd
+../Bootstrap/MergeROM.vhd
+../Bootstrap/Bootstrap_ROM.vhd
+../Bootstrap/Firmware/Bootstrap_ROM2.vhd
+../Bootstrap/Firmware/Bootstrap_ROM1.vhd
 
