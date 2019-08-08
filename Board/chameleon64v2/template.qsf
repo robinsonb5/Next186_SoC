@@ -582,5 +582,8 @@ set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_
 set_global_assignment -name VHDL_FILE ../../Board/chameleon64v2/chameleon2_io_shiftreg.vhd
 set_global_assignment -name SDC_FILE ../../Board/chameleon64v2/Next186_SoC.sdc
 set_global_assignment -name VERILOG_FILE ../../Board/chameleon64v2/Next186_SoC.v
+set_global_assignment -name QIP_FILE ../../Board/chameleon64v2/Clock_50to100Split.qip
+set_global_assignment -name QIP_FILE ../../Board/chameleon64v2/Clock_50to100Split_2ndRAM.qip
+set_global_assignment -name QIP_FILE ../../Board/chameleon64v2/Clock_50toSlowClocks.qip
 
 
