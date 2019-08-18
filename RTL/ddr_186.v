@@ -71,6 +71,8 @@
 0021 - interrupt controller master data port. R/W interrupt mask, 1disabled/0enabled (bit0=timer, bit1=keyboard, bit4=COM1) 
 00a1 - interrupt controller slave data port. R/W interrupt mask, 1disabled/0enabled (bit0=RTC, bit4=mouse) 
 
+003F - data channel to host controller
+
 0040-0043 - PIT 8253 ports
 
 0x60, 0x64 - 8042 keyboard/mouse data and cfg
@@ -197,7 +199,9 @@ module system
 		 
 		 inout [7:0]GPIO,
 		 output I2C_SCL,
-		 inout I2C_SDA
+		 inout I2C_SDA,
+		 input [8:0]dc_in,
+		 output [8:0]dc_out
     );
 
 	parameter ColBits=9;	// column bits
@@ -242,6 +246,7 @@ module system
 	wire CE_186;
 	wire ddr_rd; 
 	wire ddr_wr;
+	wire DC_SELECT = PORT_ADDR[15:0] == 16'h003f;
 	wire TIMER_OE = PORT_ADDR[15:2] == 14'b00000000010000;	//   40h..43h
 	wire VGA_DAC_OE = PORT_ADDR[15:4] == 12'h03c && PORT_ADDR[3:0] <= 4'h9; // 3c0h..3c9h	
 	wire LED_PORT = PORT_ADDR[15:0] == 16'h03bc;
@@ -421,7 +426,8 @@ module system
 		({8{INPUT_STATUS_OE}} & SDI) |
 		({8{CPU32_PORT}} & enableDSP ? cpu32_data[15:8] : 8'h00) | 
 		({8{JOYSTICK}} & GPIOState) |
-		({8{I2C_SELECT}} & i2cdout);
+		({8{I2C_SELECT}} & i2cdout) |
+		({8{DC_SELECT}} & {7'b0000000, dc_in[8]});
 
 	assign PORT_IN[7:0] = //INPUT_STATUS_OE ? {2'b1x, cpu32_halt, sq_full, vblnk, s_RS232_HOST_RXD, s_RS232_DCE_RXD, hblnk | vblnk} : CPU32_PORT ? cpu32_data[7:0] : slowportdata;
 							 ({8{VGA_DAC_OE}} & VGA_DAC_DATA) |
@@ -438,7 +444,8 @@ module system
 							 ({8{PARALLEL_PORT_CTL}} & {1'bx, dss_full, 6'bxxxxxx}) |
 							 ({8{CPU32_PORT}} & cpu32_data[7:0]) | 
 							 ({8{COM1_PORT}} & COM1_DOUT) | 
-							 ({8{OPL3_PORT}} & opl32_data) ;
+							 ({8{OPL3_PORT}} & opl32_data) |
+							 ({8{DC_SELECT}} & dc_in[7:0]) ;
 
 //	dcm dcm_system 
 //	(
@@ -907,7 +914,11 @@ endgenerate
 
 // I2C
 		if(CPU_CE && IORQ && WR && WORD && I2C_SELECT) i2c_cd <= CPU_DOUT[11:0];
-					
+
+// Host Datachannel
+		if(IORQ && CPU_CE && WR && DC_SELECT)
+			dc_out <= CPU_DOUT[8:0];
+		
 		auto_flush[1:0] <= {auto_flush[0], vblnk};		
 		
 	end

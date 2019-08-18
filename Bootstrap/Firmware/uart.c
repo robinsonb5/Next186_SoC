@@ -46,7 +46,7 @@ int puts(const char *msg)
 #endif
 
 #ifndef DISABLE_UART_RX
-char getserial()
+unsigned char getserial()
 {
 	int r=0;
 	while(!(r&(1<<REG_UART_RXINT)))

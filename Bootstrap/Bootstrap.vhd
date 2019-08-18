@@ -5,7 +5,7 @@ use work.zpupkg.ALL;
 
 entity Bootstrap is
 	generic (
-		sysclk_frequency : integer := 100
+		sysclk_frequency : integer := 500
 	);
 	port (
 		clk 			: in std_logic;
@@ -17,8 +17,13 @@ entity Bootstrap is
 		spi_clk		: out std_logic;
 		spi_cs 		: out std_logic;
 		
+		-- Data channel
+		dc_in : in std_logic_vector(8 downto 0);
+		dc_out : out std_logic_vector(8 downto 0);
+		
 		-- UART
 		txd	: out std_logic;
+		debug_rxd : in std_logic;
 		debug_txd : out std_logic;
 		divert_sdcard : out std_logic;
 		host_reset : out std_logic
@@ -27,7 +32,7 @@ end entity;
 
 architecture rtl of Bootstrap is
 
-constant sysclk_hz : integer := sysclk_frequency*10000;
+constant sysclk_hz : integer := sysclk_frequency*1000;
 constant uart_divisor : integer := sysclk_hz/1152;
 constant maxAddrBit : integer := 31;
 
@@ -59,6 +64,9 @@ signal ser_txgo : std_logic;
 signal ser_txdata2 : std_logic_vector(7 downto 0);
 signal ser_txready2 : std_logic;
 signal ser_txgo2 : std_logic;
+signal ser_rxint : std_logic;
+signal ser_rxrecv : std_logic;
+signal ser_rxdata : std_logic_vector(7 downto 0);
 
 
 -- ZPU signals
@@ -154,11 +162,11 @@ myuart2 : entity work.simple_uart
 		txdata => ser_txdata2,
 		txready => ser_txready2,
 		txgo => ser_txgo2,
-		rxdata => open,
-		rxint => open,
+		rxdata => ser_rxdata,
+		rxint => ser_rxint,
 		txint => open,
 		clock_divisor => to_unsigned(uart_divisor,16),
-		rxd => '1',
+		rxd => debug_rxd,
 		txd => debug_txd
 	);
 
@@ -238,6 +246,7 @@ begin
 		spi_cs<='1';
 		spi_active<='0';
 		divert_sdcard<='1';
+		ser_rxrecv<='1';
 	elsif rising_edge(clk) then
 		mem_busy<='1';
 		ser_txgo<='0';
@@ -262,7 +271,10 @@ begin
 
 						when X"C8" => -- System control
 							divert_sdcard<=mem_write(0);
-							ser_txgo<='1';
+							mem_busy<='0';
+
+						when X"CC" => -- Data channel
+							dc_out<=mem_write(8 downto 0);
 							mem_busy<='0';
 
 						when X"D0" => -- SPI CS
@@ -290,7 +302,8 @@ begin
 					case mem_addr(7 downto 0) is
 						when X"C0" => -- Debug UART
 							mem_read<=(others=>'X');
-							mem_read(9 downto 0)<='0'&ser_txready2&X"00";
+							mem_read(9 downto 0)<=ser_rxrecv&ser_txready2&ser_rxdata;
+							ser_rxrecv<='0';	-- Clear rx flag.
 							mem_busy<='0';
 
 						when X"C4" => -- Bootstrap UART
@@ -301,6 +314,12 @@ begin
 						when X"C8" => -- Millisecond counter
 							mem_read<=std_logic_vector(millisecond_counter);
 							mem_busy<='0';
+							
+						when X"CC" => -- Data channel out
+							mem_read(8 downto 0)<=dc_in;
+							mem_read(31 downto 9)<=(others=>'0');
+							mem_busy<='0';
+
 
 						when X"D0" => -- SPI Status
 							mem_read<=(others=>'X');
@@ -320,6 +339,12 @@ begin
 			end case;
 		end if;
 		
+
+	-- Set this after the read operation has potentially cleared it.
+		if ser_rxint='1' then
+			ser_rxrecv<='1';
+		end if;
+
 	-- SPI cycles
 
 		if spi_active='1' and spi_busy='0' then

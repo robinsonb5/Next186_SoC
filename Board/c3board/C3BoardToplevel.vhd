@@ -379,7 +379,8 @@ sys_inst: entity work.Next186SOCWrapper
 	generic map (
 		RowBits => 12,
 		ColBits => 10,
-		enableDSP => 0 -- The BlockRAM's better spent on debugging for now.
+		enableDSP => 0, -- The BlockRAM's better spent on debugging for now.
+		cpuclkfreq => 625
 	)
 	port map (
 		CLK_50MHZ => clk_50,

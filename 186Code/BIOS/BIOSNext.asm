@@ -191,8 +191,6 @@ font8x14	equ	font8x16 - 0e00h
 		org 0e000h
 bios:
 
-; AMR - Bootloader will patch in these values
-Tag	db '186',0	; Tag version 0
 sdsize_lo dw 0	; little endian
 sdsize_hi dw 0
 is_sdhc     db 0
@@ -414,14 +412,13 @@ COMFlush:
         jc      short COMFlush
 
 ; ---------------------   HDD init
-; AMR - since we were bootstrapped from SD card, the card is already initialised.
-; The bootloader patched the BIOS image with parameters.
+; AMR - we let the host deal with the SD card - so we just read the capacity in sdinit.
 
-		call    sdinit
-;		mov     HDSize, ax
 		push	ds
 		push	cs
 		pop	ds
+		call    sdinit
+;		mov     HDSize, ax
 		mov	ax,sdsize_lo
 		mov	bx,sdsize_hi
 		shr	ax,10
@@ -4078,101 +4075,35 @@ sdwwait1:
 		shr     ah, 1
 		jnc     short sdwwait1     ; wait write completion
 		jmp     sdr1
+
+host_get:
+		push	bx
+		mov	ah,1
+		out	3fh,ax
+_hgloop1:
+		in	ax,3fh
+		test	ax,100h
+		je	_hgloop1
+		mov	bh,al
+		mov	ah,0
+		out	3fh,ax
+_hgloop2:
+		in	ax,3fh
+		test	ax,100h
+		jne	_hgloop2
+		mov	ah,bh
+		pop	bx
+		ret
+
 		
 ;---------------------  init SD ----------------------
 sdinit  proc near       ; returns AX = num kilosectors
-
-;	AMR - reduce to just selecting the SD
-
-		push    ds
-		push    cx
-		push    dx
-		push    si
-		push    di
-		mov     dx, 3dah
-		push    cs
-		pop     ds
-		mov     cx, 10
-sdinit1:                   ; send 80T
-		call    sdrb
-		loop    short sdinit1
-
-		jmp	sdexit
-
-		mov     ah, 1
-		out     dx, ax       ; select SD
-
-		mov     si, offset SD_CMD0
-		push    cs
-		pop     ds
-		call    sdcmd
-		dec     ah
-		jnz     short sdexit ; error
-		
-		mov	msgmb,042h
-
-		mov     si, offset SD_CMD8
-		call    sdcmd8T
-		dec     ah
-		jnz     short sdexit ; error  (V1 cards are caught here - support those too?)
-		mov     cl, 4
-		sub     sp, cx
-		mov     di, sp
-		mov	msgmb,043h
-		push    ss
-		pop     ds
-		call    sdrblk
-		pop     ax
-		pop     ax
-		cmp     ah, 0aah
-		jne     short sdexit ; CMD8 error  (V1 cards also rejected here)
-repinit:        
-		mov     si, offset SD_CMD55
-		push    cs
-		pop     ds
-		mov	msgmb,044h
-		call    sdcmd8T
-		call    sdrb
-		mov     si, offset SD_CMD41
-		call    sdcmd
-		dec     ah
-		jz      short repinit
-
-		mov	msgmb,045h
-		
-		mov     si, offset SD_CMD58
-		call    sdcmd8T
-		mov     cl, 4
-		sub     sp, cx
-		mov     di, sp
-		mov	is_sdhc,1h
-		mov	msgmb,046h
-		push    ss
-		pop     ds
-		call    sdrblk
-		pop     ax
-		test    al, 40h     ; test OCR bit 30 (CCS)
-		pop     ax
-		jnz      short skipblksize; Don't set blocksize if we have SDHC
-		push	cs
-		pop	ds
-		mov	msgmb,047h
-		mov	is_sdhc,0h
-		;  Set blocksize to 512 here
-		mov	si, offset SD_CMD16
-		call	sdcmd8T
-		jmp	skipblksize
-
+		mov	al,82h
+		call	host_get
+		mov	sdsize_hi,ax
+		call	host_get
+		mov	sdsize_lo,ax
 sdexit: 
-		xor     ax, ax       ; raise CS
-		out     dx, ax
-		call    sdrb
-		pop     di
-		pop     si
-		pop     dx
-		mov     ax, cx       
-		pop     cx
-		pop     ds
 		ret
 
 skipblksize:
@@ -4212,6 +4143,8 @@ SD_CMD58    db  7ah, 0, 0, 0, 0, 0ffh
 ;#define cmd_CMD41(x) cmd_write(0x870069,0x40000000)
 ;#define cmd_CMD55(x) cmd_write(0xff0077,0)
 ;#define cmd_CMD58(x) cmd_write(0xff007A,0)
+
+
 
 
 Pal256:

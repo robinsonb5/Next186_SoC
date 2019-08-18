@@ -26,7 +26,7 @@ int puts(const char *msg);
 #endif
 
 #ifndef DISABLE_UART_RX
-char getserial();
+unsigned char getserial();
 #else
 #define getserial 0
 #endif

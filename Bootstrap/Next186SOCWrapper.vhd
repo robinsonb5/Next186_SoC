@@ -9,7 +9,8 @@ entity Next186SOCWrapper is
 	(
 		RowBits : integer;
 		CoLBits : integer;
-		enableDSP : integer
+		enableDSP : integer;
+		cpuclkfreq : integer
 	);
 	PORT
 	(
@@ -116,7 +117,10 @@ COMPONENT system
 		PS2_DATA2_nOE		:	 OUT STD_LOGIC;
 		GPIO		:	 INOUT STD_LOGIC_VECTOR(7 DOWNTO 0);
 		I2C_SCL		:	 OUT STD_LOGIC;
-		I2C_SDA		:	 INOUT STD_LOGIC
+		I2C_SDA		:	 INOUT STD_LOGIC;
+		-- Data channel
+		dc_in : in std_logic_vector(8 downto 0);
+		dc_out : out std_logic_vector(8 downto 0)
 	);
 END COMPONENT;
 
@@ -130,6 +134,9 @@ signal spi_host_mosi : std_logic;
 signal spi_cs : std_logic;
 signal spi_clk : std_logic;
 signal spi_mosi : std_logic;
+
+signal dc_host_to_pc : std_logic_vector(8 downto 0);
+signal dc_pc_to_host : std_logic_vector(8 downto 0);
 begin
 
 SD_n_CS <= spi_cs when divert_sdcard='1' else spi_host_cs;
@@ -140,20 +147,23 @@ SD_CK <= spi_clk when divert_sdcard='1' else spi_host_clk;
 bootstrap_inst : work.Bootstrap
 	generic map
 	(
-		sysclk_frequency => 50
+		sysclk_frequency => cpuclkfreq
 	)
 	port map
 	(
-		clk=>clk_50MHz,
+		clk=>clk_cpu,
 		reset_in => not BTN_RESET,
 		spi_mosi => spi_mosi,
 		spi_miso => SD_DO,
 		spi_clk => spi_clk,
 		spi_cs => spi_cs,
 		txd => rs232_from_bootstrap,
+		debug_rxd => RS232_DCE_RXD,
 		debug_txd => RS232_DCE_TXD,
 		divert_sdcard => divert_sdcard,
-		host_reset => host_reset
+		host_reset => host_reset,
+		dc_in => dc_pc_to_host,
+		dc_out => dc_host_to_pc
 	);
 
 
@@ -184,7 +194,7 @@ sys_inst: component system
 		LED => LED,
 		BTN_RESET=>not host_reset,
 		BTN_NMI=>BTN_NMI,
-		RS232_DCE_RXD=>rs232_from_bootstrap,
+		RS232_DCE_RXD=>RS232_DCE_RXD, -- rs232_from_bootstrap,
 --		RS232_DCE_TXD=>RS232_DCE_TXD,
 		RS232_EXT_RXD=>RS232_EXT_RXD,
 --		.RS232_EXT_TXD(),
@@ -205,12 +215,14 @@ sys_inst: component system
 		PS2_DATA2=>PS2_DATA2,
 		PS2_DATA2_nOE=>PS2_DATA2_nOE,
 
-		RS232_HOST_RXD=>RS232_HOST_RXD
+		RS232_HOST_RXD=>RS232_HOST_RXD,
 --		RS232_HOST_TXD(rs232_txd)
 --		RS232_HOST_RST(),
 --		.GPIO(),
 --		.I2C_SCL(),
 --		.I2C_SDA(),
+		dc_in => dc_host_to_pc,
+		dc_out => dc_pc_to_host
 	);
 
 
