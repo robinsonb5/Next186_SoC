@@ -3768,113 +3768,6 @@ sdrblk1:
 		ret
 
 
-;;---------------------  read/write byte ----------------------
-;sdrb:   mov al,0ffh
-;sdsb:               ; in AL=byte, DX = 03dah, out AX=result
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        in      ax, dx
-;        ret
-
-;;---------------------  write block ----------------------
-;sdwblk proc near              ; in SI=data ptr, DX=03dah, CX=size
-;        shr     cx, 1
-;sdwblk1:
-;        lodsb
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        lodsb
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        add     ax, ax
-;        out     dx, al
-;        loop    short sdwblk1
-;        ret
-;sdwblk endp
-
-;;---------------------  read block ----------------------
-;sdrblk proc near              ; in DI=data ptr, DX=03dah, CX=size. Returns CF = 0
-;        mov     al, 0ffh
-;        out     dx, al
-;        shr     cx, 1         ; CF = 0
-;        out     dx, al
-;        jmp     short sdrblk2 
-;sdrblk1:
-;        out     dx, al
-;        mov     [di], ah
-;        out     dx, al
-;        inc     di
-;sdrblk2:
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        in      ax, dx
-;        out     dx, al
-;        mov     [di], ah
-;        out     dx, al
-;        inc     di
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        nop
-;        out     dx, al
-;        in      ax, dx
-;        loop    short sdrblk1
-;        mov     [di], ah
-;        inc     di
-;        ret
-;sdrblk endp
 
 ;---------------------  verify block ----------------------
 sdvblk:              ; in DI=data ptr, DX=03dah, CX=size. Returns CF=1 on error
@@ -3906,11 +3799,75 @@ sdresp1:
 		je      short sdresp1
 sdcmd1: ret         
 
+
+dc_hi:
+		mov	ah,1
+		out	3fh,ax
+_dc_hi_loop:
+		in	ax,3fh
+		test	ax,100h
+		je	_dc_hi_loop
+		ret
+
+dc_lo:
+		mov	ah,0
+		out	3fh,ax
+_dc_lo_loop:
+		in	ax,3fh
+		test	ax,100h
+		jne	_dc_lo_loop
+		ret
+
+
 ;---------------------  read ----------------------
 sdverify:
 		push    sdvblk
 		jmp     short sdread1
+
 sdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
+
+		push ax
+		mov	ax,83h
+		call	dc_hi	; cmd
+		mov	al,dh
+		call	dc_lo	; lba 1
+		mov	al,dl
+		call	dc_hi	; lba 2
+		pop	ax
+		mov	dx,ax
+		mov	al,dh	; lba 3
+		call	dc_lo
+		mov	al,dl	; lba 4
+		call	dc_hi
+		mov	al,cl	; count
+		call	dc_lo
+
+		push cx
+		mov	ch,cl
+		mov	cl,0	; sectors -> 16-bit words
+		mov	di,bx
+_readsectorloop:
+;		call 	dc_hi
+		mov	bl,al
+		call	dc_hi
+		mov	ah,al
+		mov	al,bl
+		stosw
+		call 	dc_lo
+		dec	cx
+		jne	_readsectorloop
+
+;		call	dc_hi	; error code - FIXME - react to this
+		mov	al,80h 	; NOP
+		call	dc_lo	; restore parity
+		mov	al,80h 	; NOP
+		call	dc_hi	; restore parity
+		mov	al,80h 	; NOP
+		call	dc_lo	; restore parity
+
+		pop ax
+		ret
+
 		push    sdrblk   ; push proc address (read or verify) on stack
 sdread1:        
 		push	cs

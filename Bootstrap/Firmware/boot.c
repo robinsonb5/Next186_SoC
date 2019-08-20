@@ -52,18 +52,42 @@ int SendFile(const char *fn)
 {
 	int t;
 	int i;
+	int lba;
+	int count;
 	parity=0;
 
 	while(1)
 	{
 		int cmd=dc_handshake();
-		if(parity) putchar('-'); else putchar('_');
 
 		switch(cmd)
 		{
 			case DC_NOP:
 				puts("Got NOP\n");
 				dc_send(cmd);	// Echo command back to PC
+				break;
+
+			case DC_READBLOCK:
+				puts("ReadGot NOP\n");
+				dc_send(0); lba=dc_handshake()<<24;
+				dc_send(0); lba|=dc_handshake()<<16;
+				dc_send(0); lba|=dc_handshake()<<8;
+				dc_send(0); lba|=dc_handshake();
+				dc_send(0); count=dc_handshake();
+				puts("Got addr and count\n");
+				// FIXME - send some kind of error code here
+				while(count--)
+				{
+					sd_read_sector(lba++,sector_buffer);
+					puts("Sending block\n");
+					for(i=0;i<512;++i)
+					{
+						dc_send(sector_buffer[i]);
+						dc_handshake();
+					}
+				}
+				dc_send(0); // Error code
+				
 				break;
 
 			case DC_READCAPACITY:
@@ -79,14 +103,7 @@ int SendFile(const char *fn)
 
 			case DC_BOOTSTRAP:
 				puts("Got BOOTSTRAP\n");
-				for(i=0;i<8192;++i)
-				{
-					t=getserial();
-					dc_send(t);
-					dc_handshake();
-				}
 
-#if 0
 				if(FileOpen(&file,fn))
 				{
 					int imgsize=(file.size+511)/512;
@@ -101,10 +118,8 @@ int SendFile(const char *fn)
 						puts("Sending block\n");
 						for(i=0;i<512;++i)
 						{
-							HW_DATACHANNEL(0)=sector_buffer[i]|parity;
-							while((HW_DATACHANNEL(0)&DC_HANDSHAKE)!=parity)
-								;
-							parity^=DC_HANDSHAKE;
+							dc_send(sector_buffer[i]);
+							dc_handshake();
 							if(parity) putchar('-'); else putchar('_');
 						}
 						++c;
@@ -117,7 +132,6 @@ int SendFile(const char *fn)
 					puts("Can't open file\n");
 					return(0);
 				}
-#endif
 				break;
 
 			default:
