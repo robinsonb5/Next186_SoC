@@ -236,7 +236,7 @@ int GetCluster(int cluster)
 //        buffered_fat_index = sb;
  //   }
     i = fat32 ? SwapBBBB(fat_buffer.fat32[i]) & 0x0FFFFFFF : SwapBB(fat_buffer.fat16[i]); // get FAT link for 68000 
-	return(i);
+    return(i);
 }
 
 
@@ -280,6 +280,7 @@ unsigned int FileOpen(fileTYPE *file, const char *name)
                         file->size = SwapBBBB(pEntry->FileSize); 		// for 68000
                         file->cluster = SwapBB(pEntry->StartCluster);
 						file->cluster += (fat32 ? (SwapBB(pEntry->HighCluster) & 0x0FFF) << 16 : 0);
+			file->initcluster=file->cluster;
                         file->sector = 0;
 
                         return(1);
@@ -336,6 +337,22 @@ unsigned int FileRead(fileTYPE *file, unsigned char *pBuffer)
 }
 
 fileTYPE file;
+
+unsigned int FileSeek(fileTYPE *f,int block)
+{
+    if(block>=(f->sector>>9))
+        return(0); // Seek past end of file
+    if(block<f->sector) // If we want an earlier block, go back to the start of the file...
+    {
+        f->sector=0;
+        f->cluster=GetCluster(f->initcluster);
+    }
+    while(f->sector!=block)
+    {
+	FileNextSector(f);
+    }
+    return(1);
+}
 
 int LoadFile(const char *fn, unsigned char *buf)
 {

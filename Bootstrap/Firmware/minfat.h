@@ -9,6 +9,7 @@ typedef struct
     unsigned long sector;          /* sector index in file */
     unsigned long size;            /* file size */
     unsigned long cluster;         /* current cluster */
+    unsigned long initcluster;
 } fileTYPE;
 
 struct PartitionEntry
@@ -105,6 +106,7 @@ unsigned int FileOpen(fileTYPE *file, const char *name);
 unsigned int FileRead(fileTYPE *file, unsigned char *pBuffer);
 //unsigned char FileReadEx(fileTYPE *file, unsigned char *pBuffer, unsigned long nSize);
 
+unsigned int FileSeek(fileTYPE *file,int block);
 int LoadFile(const char *fn, unsigned char *buf);
 
 #endif

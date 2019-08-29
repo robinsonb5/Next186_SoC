@@ -3,12 +3,9 @@
 
 int putchar(int c);
 
-#ifndef DISABLE_PRINTF
-
 static char temp[80];
 
-static int
-_cvt(int val, char *buf, int radix)
+int _cvt(int val, char *buf, int radix)
 {
 #ifdef PRINTF_HEX_ONLY
 	int c;
@@ -70,6 +67,7 @@ _cvt(int val, char *buf, int radix)
 
 #define is_digit(c) ((c >= '0') && (c <= '9'))
 
+#ifndef DISABLE_PRINTF
 
 static char vpfbuf[sizeof(long long)*8];
 

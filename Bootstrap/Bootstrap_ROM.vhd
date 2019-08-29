@@ -46,7 +46,7 @@ begin
 	myrom2 : entity work.Bootstrap_ROM2
 	generic map
 	(
-		maxAddrBitBRAM => maxAddrBitBRAM-3
+		maxAddrBitBRAM => maxAddrBitBRAM-2
 	)
 	port map (
 		clk => clk,

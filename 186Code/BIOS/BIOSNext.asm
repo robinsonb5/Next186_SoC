@@ -44,6 +44,9 @@
 ; The bootstrap code may load the BIOS from SD, or from RS232, and place it at F000:E000
 
 
+; Modifications by AMR to support loading from a separate control module.
+; Advantages: non-SDHC support, BIOS can be loaded from a file, potential hardfile support
+
 
 .186
 .model tiny
@@ -2492,6 +2495,20 @@ disktbl dw      DiskReset, DiskGetStatus, DiskRead, DiskWrite, DiskVerify, DiskF
 		dw      DiskReady, DiskRecalibrate, DiskDiag, DiskDiag, DiskDiag, DiskGetType, DiskChanged, DiskSetDASDType, DiskSetMediaType, DiskPark, DiskFormat,  DiskExtInstCheck, DiskExtRead, DiskExtWrite, DiskExtVerify, DiskExtLock
 		dw      DiskExtEject, DiskExtSeek, DiskExtGetParams
 
+diskbasetable:
+	db	0fh
+	db	2
+	db	8	; motor wait
+	db	2	; 512 byte sectors
+	db	15	; last sector
+	db	01bh	; gap 
+	db	0ffh	; dtl
+	db	054h	; gap 
+	db	0f6h 	; fill
+	db	15	; settle time
+	db	8	; motor start time
+
+
 DiskGetType:
 		cmp     dl, 80h
 		jne     short DiskReset ; ah=0, drive not present
@@ -3821,8 +3838,8 @@ _dc_lo_loop:
 
 ;---------------------  read ----------------------
 sdverify:
-		push    sdvblk
-		jmp     short sdread1
+		; FIXME - implement verifications
+		ret
 
 sdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 
@@ -3868,170 +3885,44 @@ _readsectorloop:
 		pop ax
 		ret
 
-		push    sdrblk   ; push proc address (read or verify) on stack
-sdread1:        
-		push	cs
-		pop	ds
-		cmp	is_sdhc,0	; AMR - scale LBA if not SDHC, multiply by 512, so double then shift left 8 bits
-		jne	read_sdhc
-		add	ax,ax	; dx: ab  ax: cd  - a is ignored
-		adc	dx,dx	; doubled.  Need to shift left by 8
-		mov	dh,dl	; dx: bb  ax: cd
-		xchg	al,ah	; dx: bb  ax: dc
-		push 	00h	; stack: ... 0 0 (lsbs zero, crc zero)
-		jmp	read_cont
-read_sdhc:
-		push    ax	; dx: ab  ax: cd   	stack: .... d c (c is ignored - crc byte)
-		mov     al, dl	; SDHC    dx: ab  ax: cb
-				; normal  dx; db  ax: cb
-read_cont:
-		push    ax	; 			stack: .... b c d c (2nd c ignored - crc byte)
-				; (non sdhc mode)	stack: .... c d 0 0
-		mov     dl, 51h  ; CMD17 dx: ak
-		cmp     cx, 1
-		je      short sdr1s
-		inc     dx      ; CMD18 - multiple sectors
-sdr1s:
-		push    dx	; SDHC   stack: k a b c d c - command has been successfully built
-				; normal stack: k b c d 0 0
-		mov     si, sp 
-
-		mov     dx, 3dah
-		mov     ah, 1
-		out     dx, ax       ; CS on
-		mov     di, bx
-		mov     bx, cx
-		mov     bp, cx       ; save sectors number
-		push    ss
-		pop     ds
-	mov	byte ptr [si+5], 0ffh ; checksum
-		call    sdcmd
-		add     sp, 6
-		or      ah, ah
-		jnz     short sdr11   ; error
-		push    es
-		pop     ds
-sdrms:
-		mov     ax, di
-		shr     ax, 4
-		mov     si, ds
-		add     ax, si
-		mov     ds, ax
-		and     di, 15
-		call    sdresp     ; wait for 0feh token
-		cmp     ah, 0feh
-		jne     short sdr11; read token error 
-		mov     ch, 2      ; 512 byte sector
-		pop     si
-		call    si         ; sdrblk or sdvblk
-		push    si
-		pushf
-		call    sdrb       ; ignore CRC
-		call    sdrb       ; ignore CRC
-		popf
-		jc      short sdr3 ; verify error   
-		dec     bx
-		jnz     short sdrms; multiple sectors
-sdr3:        
-		cmp     bp, 1
-		je      short sdr11; single sector
-		mov     si, offset SD_CMD12 ; stop transfer
-		push    cs
-		pop     ds
-		call    sdcmd
-sdr2:
-		shr     ah, 1
-		jnc     short sdr11
-		call    sdrb
-		jmp     short sdr2
-sdr11:
-		pop     ax         ; remove proc address from stack
-sdr1:       
-		xor     ax, ax
-		out     dx, ax
-		call    sdrb       ; 8T
-		mov     ax, bp
-		sub     ax, bx
-		ret     
 
 ;---------------------  write ----------------------
 sdwrite:   ; DX:AX sector, ES:BX buffer, CX=sectors, returns AX=wrote sectors
-		push	cs
+
+		push ax
+		mov	ax,84h  ; Write block command
+		call	dc_hi	; cmd
+		mov	al,dh
+		call	dc_lo	; lba 1
+		mov	al,dl
+		call	dc_hi	; lba 2
+		pop	ax
+		mov	dx,ax
+		mov	al,dh	; lba 3
+		call	dc_lo
+		mov	al,dl	; lba 4
+		call	dc_hi
+		mov	al,cl	; count
+		call	dc_lo
+
+		push cx
+		mov	ch,cl
+		mov	cl,0	; sectors -> 16-bit words
+		push	es
 		pop	ds
-		cmp	is_sdhc,0	; AMR - scale LBA if not SDHC, multiply by 512, so double then shift left 8 bits
-		jne	write_sdhc
-		add	ax,ax	; dx: ab  ax: cd  - a is ignored
-		adc	dx,dx	; doubled.  Need to shift left by 8
-		mov	dh,dl	; dx: bb  ax: cd
-		xchg	al,ah	; dx: bb  ax: dc
-		push 	00h	; stack: ... 0 0 (lsbs zero, crc zero)
-		jmp	write_cont
-write_sdhc:
-		push    ax
-		mov     al, dl
-write_cont:
-		push    ax
-		mov     dl, 58h  ; CMD24
-		cmp     cx, 1
-		je      short sdw1s
-		inc     dx      ; CMD25 - multiple sectors
-sdw1s:
-		push    dx
-		mov     si, sp 
+		mov	si,bx
+_writesectorloop:
+		lodsw
+		mov	bl,ah					
+		call 	dc_hi
+		mov	al,bl
+		call 	dc_lo
+		dec	cx
+		jne	_writesectorloop
 
-		mov     dx, 3dah
-		mov     ah, 1
-		out     dx, ax       ; CS on
-		mov     bp, cx       ; save sectors number
-		push    ss
-		pop     ds
-		mov	byte ptr [si+5], 0ffh ; checksum
-		call    sdcmd
-		add     sp, 6
-		mov     si, bx
-		mov     bx, bp
-		or      ah, ah
-		jnz     short sdr1   ; error
-		push    es
-		pop     ds
-sdwms:
-		mov     ax, si
-		shr     ax, 4
-		mov     di, ds
-		add     ax, di
-		mov     ds, ax
-		and     si, 15
-		mov     al, 0feh      ; start token
-		cmp     bp, 1
-		je      short sdw1s1
-		mov     al, 0fch   ; multiple sectors
-sdw1s1:        
-		call    sdsb     
-		mov     ch, 2      ; 512 byte sector
-		call    sdwblk
-		call    sdrb       ; ignore CRC
-		call    sdrb       ; ignore CRC
-		call    sdrb       ; read response byte xxx00101
-		and     ah, 0eh
-		cmp     ah, 4
-		jne     short sdr1 ; write error
-sdwwait:
-		call    sdrb
-		shr     ah, 1
-		jnc     short sdwwait     ; wait write completion
-		dec     bx
-		jnz     short sdwms       ; multiple sectors
+		pop ax
+		ret
 
-		cmp     bp, 1
-		je      sdr1
-		mov     al, 0fdh     ; multiple end transfer
-		call    sdsb 
-		call	sdrb     
-sdwwait1:
-		call    sdrb
-		shr     ah, 1
-		jnc     short sdwwait1     ; wait write completion
-		jmp     sdr1
 
 host_get:
 		push	bx
