@@ -2511,7 +2511,7 @@ diskbasetable:
 
 DiskGetType:
 		cmp     dl, 80h
-		jne     short DiskReset ; ah=0, drive not present
+		jne     short DiskTypeFloppy ; ah=0, drive not present
 		mov     cx, HDSize      
 		mov     dx, cx
 		test    cx, cx
@@ -2523,15 +2523,34 @@ DiskGetTypeexit:
 		pop     ds          ; discard ret address
 		pop     ds          ; discard DS
 		xor     byte ptr HDOpStarted, 8     ; CF <- 0 
-		jmp     short   exit1        
+		jmp     short   exit1
+
+DiskTypeFloppy:
+		cmp	dl,00h	; Drive A
+		jne	DiskReset
+		mov	ah,-1	; Disk, no change detection
+		jmp	DiskGetTypeexit
 
 DiskExtInstCheck:
 		xchg    bl, bh
 		mov     ah, -1
 		mov     cx, 1       ; extended disk access functions (AH=42h-44h,47h,48h) supported
 		cmp     dl, 80h
+		je     short DiskGetTypeexit
+		cmp     dl, 0h
+		je     short DiskGetTypeexit
 		jne     short notready
-		jmp     short DiskGetTypeexit
+
+
+DiskGetStatus:
+		mov     ah, HDLastError
+		ret
+	  
+DiskVerify:
+		cmp	dl,80h
+		jne	short notready
+		mov     bp, sdverify
+		jmp     short   DiskRead1
 
 DiskReset:
 DiskChanged:
@@ -2539,23 +2558,24 @@ DiskPark:
 		mov     ah, 0       ; success
 		ret
 
-DiskGetStatus:
-		mov     ah, HDLastError
-		ret
-	  
-DiskVerify:
-		mov     bp, sdverify
-		jmp     short   DiskRead1
 DiskWrite:
+		cmp	dl,80h
+		jne	short notready
 		mov     bp, sdwrite
 		jmp     short   DiskRead1
+
 DiskRead:
 		mov     bp, sdread
+		cmp	dl, 80h
+		je	short DiskRead1
+		cmp	dl,0h
+		jne	short notready
+		mov	bp, fdread
 DiskRead1:        
 		test    al, al
 		jz      short DiskReset
-		cmp     dl, 80h
-		jne     short notready
+;		cmp     dl, 80h
+;		jne     short notready
 		mov     ah, 4
 		test    cl, 3fh
 		jz      short DiskReadend   ; bad sector 0
@@ -2613,7 +2633,8 @@ notready:
 DiskGetParams:
 		cmp     dl, 80h
 		mov     ah, 7
-		jne     short DiskReadend   ; ret
+		jne     FloppyGetParams
+;		jne     short DiskReadend   ; ret
 		mov     bl, 0   ; ???
 		mov     ax, HDSize
 		mov     dx, ax
@@ -2696,6 +2717,20 @@ DiskExtGetParams:
 		pop     ax
 		mov     ah, 0
 		ret 
+
+FloppyGetParams:
+		cmp     dl, 0h
+		jne     DiskReadend   ; ret
+		mov	bl,04h	; 1.44 meg floppy
+		mov	ch,50h	; 80 cylinders
+		mov	cl,18	; sectors per track
+		mov	dh,2	; 2 sides
+		mov	dl,1	; 1 drive
+		push	cs
+		pop	es
+		mov	di,diskbasetable
+		xor	ax,ax
+		ret
 
 DiskReadSectBuffer:
 DiskWriteSectBuffer:
@@ -3841,10 +3876,15 @@ sdverify:
 		; FIXME - implement verifications
 		ret
 
+fdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
+		push ax
+		mov	ax,85h
+		jmp	short sdread1
 sdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 
 		push ax
 		mov	ax,83h
+sdread1:
 		call	dc_hi	; cmd
 		mov	al,dh
 		call	dc_lo	; lba 1
