@@ -204,6 +204,7 @@ msgkb       db 'PS2 KB detected', 13, 10, 0
 
 		org 0e062h ; 5b
 coldboot:
+	; FIXME - avoid re-querying the SDCard's capacity here
 warmboot:
 		cli
 		cld
@@ -2446,12 +2447,69 @@ int12   proc near
 		iret        
 int12   endp
 
+
+; --- host datachannel ---
+
+dc_hi:
+		mov	ah,1
+		out	3fh,ax
+_dc_hi_loop:
+		in	ax,3fh
+		test	ax,100h
+		je	_dc_hi_loop
+		ret
+
+dc_lo:
+		mov	ah,0
+		out	3fh,ax
+_dc_lo_loop:
+		in	ax,3fh
+		test	ax,100h
+		jne	_dc_lo_loop
+		ret
+
+dbghex:
+		push	bx
+		push	cx
+		mov	cl,4
+		mov	bx,ax
+dbghexloop:
+		mov	al,0feh
+		call	dc_hi
+		rol	bx,4
+		mov	ax,bx
+		and	al,0fh
+		add	al,'0'
+		cmp	al,'9'
+		jle	skiphex
+		add	al,('A'-'9')-1
+skiphex:
+		call	dc_lo
+		dec	cl
+		jne	dbghexloop
+		pop	cx
+		pop	bx
+		ret
+
+
 ; --------------------- INT 13h - Disk services ----------------
 HDLastError       equ     <ds:[74h]>
 HDOpStarted       equ     <ds:[92h]>    ; bit 3: in INT13h (all other bits must be 0)
 HDSize            equ     <ds:[94h]>
 
 int13   proc near
+		cmp	dl,00h
+		jne	short	skipdbg
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'I'
+		call	dc_lo
+		pop 	ax
+		push 	ax
+		call 	dbghex
+		pop	ax
+skipdbg:
 		push    ds
 		push    bp
 		push    40h
@@ -2500,7 +2558,7 @@ diskbasetable:
 	db	2
 	db	8	; motor wait
 	db	2	; 512 byte sectors
-	db	15	; last sector
+	db	18	; last sector
 	db	01bh	; gap 
 	db	0ffh	; dtl
 	db	054h	; gap 
@@ -2528,6 +2586,10 @@ DiskGetTypeexit:
 DiskTypeFloppy:
 		cmp	dl,00h	; Drive A
 		jne	DiskReset
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'F'
+		call	dc_lo
 		mov	ah,-1	; Disk, no change detection
 		jmp	DiskGetTypeexit
 
@@ -2539,62 +2601,111 @@ DiskExtInstCheck:
 		je     short DiskGetTypeexit
 		cmp     dl, 0h
 		je     short DiskGetTypeexit
-		jne     short notready
+		jne     notready
 
 
 DiskGetStatus:
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'s'
+		call	dc_lo
+		pop	ax
+
 		mov     ah, HDLastError
 		ret
 	  
 DiskVerify:
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'v'
+		call	dc_lo
+		pop	ax
 		cmp	dl,80h
-		jne	short notready
+		jne	notready
 		mov     bp, sdverify
 		jmp     short   DiskRead1
 
 DiskReset:
 DiskChanged:
 DiskPark:
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'m'
+		call	dc_lo
+		pop	ax
 		mov     ah, 0       ; success
 		ret
 
 DiskWrite:
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'w'
+		call	dc_lo
+		pop	ax
+
 		cmp	dl,80h
-		jne	short notready
+		jne	notready
 		mov     bp, sdwrite
 		jmp     short   DiskRead1
 
 DiskRead:
-		mov     bp, sdread
-		cmp	dl, 80h
-		je	short DiskRead1
-		cmp	dl,0h
-		jne	short notready
-		mov	bp, fdread
-DiskRead1:        
 		test    al, al
 		jz      short DiskReset
-;		cmp     dl, 80h
-;		jne     short notready
 		mov     ah, 4
 		test    cl, 3fh
 		jz      short DiskReadend   ; bad sector 0
+		cmp	dl, 80h
+		je	short DiskRead1
+		cmp	dl,0h
+		jne	notready
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'f'
+		call	dc_lo
+		pop	ax
+
+		mov	bp, fdread
+		pusha
+		mov     ah, 0
+		push	ax
+		call    FDHCStoLBA
+		jmp	DiskReadCont
+
+DiskRead1:        
+;		cmp     dl, 80h
+;		jne     short notready
+		mov     bp, sdread
 		pusha
 		mov     ah, 0
 		push    ax
 		call    HCStoLBA
+DiskReadCont:
 		pop     cx
+
 		push    cx        
 		call    bp              ; DX:AX sector, ES:BX buffer, CX=sectors, returns AX=read sectors
+
 		pop     cx
+
 		sub     cx, ax
 		neg     cx              ; CF=1 if cx != 0
 		rcl     ah, 3           ; AH = 4*CF (sector not found / read error)
+
+		push	ax
+		call	dbghex
+		pop	ax
+
 		mov     ds, ax
 		popa
 		mov     ax, ds
 DiskReadend:
 		ret
+
 
 HCStoLBA:       ; CX = {cyl[7:0], cyl[9:8], sect[5:0]}, DH = head. Returns DX:AX LBA
 		mov     al, ch
@@ -2610,9 +2721,30 @@ HCStoLBA:       ; CX = {cyl[7:0], cyl[9:8], sect[5:0]}, DH = head. Returns DX:AX
 		add     ax, cx
 		adc     dx, 0
 		ret       
+
+
+FDHCStoLBA:     ; CX = {cyl[7:0], cyl[9:8], sect[5:0]}, DH = head. Returns DX:AX LBA
+;		mov	ax,cx		
+;		call	dbghex
+;		mov	ax,dx
+;		call	dbghex
+		mov     al, ch
+		mov     ah, cl
+		shr     ah, 6
+		shr     dx, 8
+		imul    dx, 18
+		and     cx, 3fh
+		add     cx, dx
+		dec     cx
+		mov     dx, 18*2
+		mul     dx
+		add     ax, cx
+		adc     dx, 0
+		ret     
+  
 ;    unsigned int s = cs & 0x3f;
 ;    unsigned int c = ((cs & 0xc0) << 2) | (cs >> 8);
-;    return (c*255l + h)*63l + s - 1l;
+;    return (c*2 + h)*18l + s - 1l;
 
 DiskFormat:
 DiskInit:
@@ -2622,10 +2754,16 @@ DiskReady:
 DiskRecalibrate:
 DiskDiag:
 DiskExtSeek:
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'k'
+		call	dc_lo
+		pop	ax
 		cmp     word ptr HDSize, 0
 		je      short notready
 		cmp     dl, 80h
-		je      short DiskReset
+		je      DiskReset
 notready:        
 		mov     ah, 0aah        ; disk not ready
 		ret
@@ -2719,10 +2857,17 @@ DiskExtGetParams:
 		ret 
 
 FloppyGetParams:
+		push	ax
+		mov	al,0feh
+		call	dc_hi
+		mov	al,'g'
+		call	dc_lo
+		pop	ax
+
 		cmp     dl, 0h
 		jne     DiskReadend   ; ret
 		mov	bl,04h	; 1.44 meg floppy
-		mov	ch,50h	; 80 cylinders
+		mov	ch,4fh	; 79, last cylinder number
 		mov	cl,18	; sectors per track
 		mov	dh,2	; 2 sides
 		mov	dl,1	; 1 drive
@@ -3509,7 +3654,7 @@ int18 endp
 int19 proc near
 		mov     ax, 201h
 		mov     cx, 1
-		mov     dx, 80h
+		mov     dx, 00h
 		push    0
 		pop     es
 		mov     bx, 7c00h
@@ -3852,24 +3997,6 @@ sdresp1:
 sdcmd1: ret         
 
 
-dc_hi:
-		mov	ah,1
-		out	3fh,ax
-_dc_hi_loop:
-		in	ax,3fh
-		test	ax,100h
-		je	_dc_hi_loop
-		ret
-
-dc_lo:
-		mov	ah,0
-		out	3fh,ax
-_dc_lo_loop:
-		in	ax,3fh
-		test	ax,100h
-		jne	_dc_lo_loop
-		ret
-
 
 ;---------------------  read ----------------------
 sdverify:
@@ -3963,33 +4090,23 @@ _writesectorloop:
 		pop ax
 		ret
 
-
-host_get:
-		push	bx
-		mov	ah,1
-		out	3fh,ax
-_hgloop1:
-		in	ax,3fh
-		test	ax,100h
-		je	_hgloop1
-		mov	bh,al
-		mov	ah,0
-		out	3fh,ax
-_hgloop2:
-		in	ax,3fh
-		test	ax,100h
-		jne	_hgloop2
-		mov	ah,bh
-		pop	bx
-		ret
-
 		
 ;---------------------  init SD ----------------------
 sdinit  proc near       ; returns AX = num kilosectors
 		mov	al,82h
-		call	host_get
+		push	bx
+		call	dc_hi
+		mov	bh,al
+		call	dc_lo
+		mov	ah,bh
+		pop	bx
 		mov	sdsize_hi,ax
-		call	host_get
+		push	bx
+		call	dc_hi
+		mov	bh,al
+		call	dc_lo
+		mov	ah,bh
+		pop	bx
 		mov	sdsize_lo,ax
 sdexit: 
 		ret

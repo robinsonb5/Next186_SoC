@@ -340,13 +340,14 @@ fileTYPE file;
 
 unsigned int FileSeek(fileTYPE *f,int block)
 {
-    if(block>=(f->sector>>9))
+    if(block>=(f->size>>9))
         return(0); // Seek past end of file
     if(block<f->sector) // If we want an earlier block, go back to the start of the file...
     {
         f->sector=0;
-        f->cluster=GetCluster(f->initcluster);
+        f->cluster=f->initcluster;
     }
+    // FIXME - can do this cluster by cluster instead of block by block...
     while(f->sector!=block)
     {
 	FileNextSector(f);

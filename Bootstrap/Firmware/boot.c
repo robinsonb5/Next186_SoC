@@ -75,7 +75,7 @@ int main(int argc,char **argv)
 			switch(cmd)
 			{
 				case DC_NOP:
-					puts("NOP\n");
+//					puts("NOP\n");
 					dc_send(DC_NOP);
 					break;
 
@@ -86,7 +86,7 @@ int main(int argc,char **argv)
 					break;
 
 				case DC_WRITEBLOCK:
-					puts(" W");
+//					puts(" W");
 					dc_send(0); lba=dc_handshake()<<24;
 					dc_send(0); lba|=dc_handshake()<<16;
 					dc_send(0); lba|=dc_handshake()<<8;
@@ -127,7 +127,7 @@ int main(int argc,char **argv)
 					dc_send(0); lba|=dc_handshake()<<8;
 					dc_send(0); lba|=dc_handshake();
 					dc_send(0); count=dc_handshake();
-					_cvt(lba,0,16);
+//					_cvt(lba,0,16);
 					// FIXME - send some kind of error code here
 					while(count--)
 					{
@@ -136,18 +136,23 @@ int main(int argc,char **argv)
  						{
 							// FIXME - send error if there's no fdimage.
 							puts(" FS");
+							_cvt(lba,0,16);
+							putchar(' ');
 							FileSeek(&file,lba);
 							FileRead(&file,sector_buffer);
 						}
 						else
 						{
-							puts(" R");
+//							puts(" R");
 							sd_read_sector(lba++,sector_buffer);
 						}
 	//					puts("Sending block\n");
 						for(i=0;i<128;++i)
 						{
 							unsigned int v=*ptr++;
+							if(cmd==DC_FDREADBLOCK)
+								_cvt(v,0,16);
+
 							dc_send(v>>24);
 							dc_handshake();
 							dc_send((v>>16)&255);
