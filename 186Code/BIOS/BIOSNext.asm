@@ -2724,10 +2724,10 @@ HCStoLBA:       ; CX = {cyl[7:0], cyl[9:8], sect[5:0]}, DH = head. Returns DX:AX
 
 
 FDHCStoLBA:     ; CX = {cyl[7:0], cyl[9:8], sect[5:0]}, DH = head. Returns DX:AX LBA
-;		mov	ax,cx		
-;		call	dbghex
-;		mov	ax,dx
-;		call	dbghex
+		mov	ax,cx
+		call	dbghex
+		mov	ax,dx
+		call	dbghex
 		mov     al, ch
 		mov     ah, cl
 		shr     ah, 6
@@ -2869,7 +2869,7 @@ FloppyGetParams:
 		mov	bl,04h	; 1.44 meg floppy
 		mov	ch,4fh	; 79, last cylinder number
 		mov	cl,18	; sectors per track
-		mov	dh,2	; 2 sides
+		mov	dh,1	; 2 sides
 		mov	dl,1	; 1 drive
 		push	cs
 		pop	es

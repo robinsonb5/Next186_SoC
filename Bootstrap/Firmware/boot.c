@@ -138,7 +138,7 @@ int main(int argc,char **argv)
 							puts(" FS");
 							_cvt(lba,0,16);
 							putchar(' ');
-							FileSeek(&file,lba);
+							FileSeek(&file,lba++);
 							FileRead(&file,sector_buffer);
 						}
 						else
@@ -150,8 +150,8 @@ int main(int argc,char **argv)
 						for(i=0;i<128;++i)
 						{
 							unsigned int v=*ptr++;
-							if(cmd==DC_FDREADBLOCK)
-								_cvt(v,0,16);
+//							if(cmd==DC_FDREADBLOCK)
+//								_cvt(v,0,16);
 
 							dc_send(v>>24);
 							dc_handshake();
