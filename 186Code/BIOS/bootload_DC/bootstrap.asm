@@ -149,51 +149,92 @@ flush:
 		sub		bx, 40h
 		jnz		flush
 
-;		AMR - modify to load the BIOS over RS232 rather than a program.	
+;		AMR - modified to load the BIOS over RS232 rather than a program.	
 
-		xor	si,si
+;		xor	si,si
 		mov	bx,2000h
 
-		mov 	ax,180h
-		out	3fh,ax
-_hsloop:
-		in	ax,3fh
-		cmp	ax,0180h
-		jne	_hsloop
-		mov	ax,080h
-		out	3fh,ax
-_hsloop2:
-		in	ax,3fh
-		cmp	ax,080h
-		jne	_hsloop2
+		jmp	loadbios
 
-		jmp 	rs232boot
 
-		mov	ax,181h	; BOOTSTRAP
-		out	3fh,ax
+; --- host datachannel ---
 
-_recloop:
-		in	ax,3fh
-		test	ax,100h
-		je	_recloop
-		mov	[si],al
-		inc	si
-		mov	al,bl
-		mov	ah,0
-		out	3fh,ax
-		dec	bx
-_recloop2:
-		in	ax,3fh
-		test	ax,100h
-		jne	_recloop2
-		mov	[si],al
-		inc	si
-		dec	bx
-		je	_boot
-		mov	al,bl
+dc_hi:
 		mov	ah,1
 		out	3fh,ax
-		jmp	_recloop
+_dc_hi_loop:
+		in	ax,3fh
+		test	ax,100h
+		je	_dc_hi_loop
+		ret
+
+dc_lo:
+		mov	ah,0
+		out	3fh,ax
+_dc_lo_loop:
+		in	ax,3fh
+		test	ax,100h
+		jne	_dc_lo_loop
+		ret
+
+fdimgname:
+		db 'BIOSNEXT186',0,0
+
+
+loadbios:	; Ask the control module to open the BIOS image.  If this fails we'll revert to RS232.
+		push	ds
+		push	cs
+		pop	ds
+		mov	si,fdimgname + BOOTOFFSET - begin
+		mov	al,090h ; DC_SETIMAGE
+		call	dc_hi
+imgnameloop:
+		lodsb
+		test	al,al
+		jz	short imgnamesent
+		call	dc_lo
+		lodsb
+		call	dc_hi
+		jmp	short imgnameloop
+imgnamesent:
+		call	dc_lo	; Get response
+		pop	ds
+		test	al,al	; 0 for success
+		jne	rs232boot
+
+		mov	al,03h	; read from image file
+		call	dc_hi	; cmd
+
+		mov	al,0
+		call	dc_lo	; lba 1
+		mov	al,0
+		call	dc_hi	; lba 2
+		mov	al,0
+		call	dc_lo
+		mov	al,0	; lba 4
+		call	dc_hi
+		mov	al,16	; 16 sectors for 8kb BIOS
+		call	dc_lo
+
+		mov	cl,16	; sectors -> 16-bit words
+		xor	di,di	; destination
+_readsectorloop:
+;		call 	dc_hi	; First byte of response came at last dc_lo
+		mov	bl,al
+		call	dc_hi
+		mov	ah,al
+		mov	al,bl
+		stosw
+		call 	dc_lo
+		dec	cx
+		jne	_readsectorloop
+
+		mov	al,80h 	; NOP
+		call	dc_hi	; restore parity
+		mov	al,80h 	; NOP
+		call	dc_lo	; restore parity
+
+		je	_boot
 
 
 ; ----------------  serial receive byte 115200 bps --------------
@@ -226,6 +267,7 @@ dly1:
 
 
 rs232boot:
+		xor		si,si
 		call		srecb
 		mov		[si], ah
 		inc		si

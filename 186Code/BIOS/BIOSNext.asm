@@ -195,9 +195,6 @@ font8x14	equ	font8x16 - 0e00h
 		org 0e000h
 bios:
 
-sdsize_lo dw 0	; little endian
-sdsize_hi dw 0
-
 biosmsg     db 'Next186 Chameleon SoC PC BIOS (C) 2017 Nicolae Dumitrache', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
@@ -419,13 +416,10 @@ COMFlush:
 ; AMR - we let the host deal with the SD card - so we just read the capacity in sdinit.
 
 		push	ds
-		push	cs
-		pop	ds
 		call    sdinit
 		call	fdinit
-;		mov     HDSize, ax
-		mov	ax,sdsize_lo
-		mov	bx,sdsize_hi
+		mov	ax,HDSize_lo
+		mov	bx,HDSize_hi
 		shr	ax,10
 		shl	bx,6
 		or	ax,bx
@@ -2496,7 +2490,10 @@ skiphex:
 ; --------------------- INT 13h - Disk services ----------------
 HDLastError       equ     <ds:[74h]>
 HDOpStarted       equ     <ds:[92h]>    ; bit 3: in INT13h (all other bits must be 0)
-HDSize            equ     <ds:[94h]>
+HDSize            equ     <ds:[94h]>	; Deprecate this since it doesn't have sufficient resolution for non-SDHC cards
+FDPresent	equ	<ds:[42h]>	; fdc control area
+HDSize_lo	equ	<ds:[0ach]>	; in reserved block
+HDSize_hi	equ	<ds:[0aeh]>	; in reserved block
 
 int13   proc near
 		cmp	dl,00h
@@ -2507,9 +2504,9 @@ int13   proc near
 		mov	al,'I'
 		call	dc_lo
 		pop 	ax
-		push 	ax
-		call 	dbghex
-		pop	ax
+;		push 	ax
+;		call 	dbghex
+;		pop	ax
 skipdbg:
 		push    ds
 		push    bp
@@ -2572,13 +2569,15 @@ DiskGetType:
 		cmp     dl, 80h
 		jne     short DiskTypeFloppy ; ah=0, drive not present
 		; FIXME - put sdsize_hi in dx, sdsize_lo in cx
-		mov     cx, HDSize      
-		mov     dx, cx
-		test    cx, cx
+		mov     cx, HDSize_lo
+		mov	dx, HDSize_hi
+		mov	ax,cx
+		or	ax,dx
+		test    ax, ax
 		jz      short DiskReset ; ah=0, drive not present
 		mov     ah, -3      ; HD present
-		shr     cx, 6
-		shl     dx, 10      ; CX:DX = HDSize * 1024
+;		shr     cx, 6
+;		shl     dx, 10      ; CX:DX = HDSize * 1024
 DiskGetTypeexit:        
 		pop     ds          ; discard ret address
 		pop     ds          ; discard DS
@@ -2700,9 +2699,9 @@ DiskReadCont:
 		neg     cx              ; CF=1 if cx != 0
 		rcl     ah, 3           ; AH = 4*CF (sector not found / read error)
 
-		push	ax
-		call	dbghex
-		pop	ax
+;		push	ax
+;		call	dbghex
+;		pop	ax
 
 		mov     ds, ax
 		popa
@@ -2728,10 +2727,10 @@ HCStoLBA:       ; CX = {cyl[7:0], cyl[9:8], sect[5:0]}, DH = head. Returns DX:AX
 
 
 FDHCStoLBA:     ; CX = {cyl[7:0], cyl[9:8], sect[5:0]}, DH = head. Returns DX:AX LBA
-		mov	ax,cx
-		call	dbghex
-		mov	ax,dx
-		call	dbghex
+;		mov	ax,cx
+;		call	dbghex
+;		mov	ax,dx
+;		call	dbghex
 		mov     al, ch
 		mov     ah, cl
 		shr     ah, 6
@@ -2778,10 +2777,12 @@ DiskGetParams:
 		jne     FloppyGetParams
 ;		jne     short DiskReadend   ; ret
 		mov     bl, 0   ; ???
-		mov     ax, HDSize
-		mov     dx, ax
-		shl     ax, 10
-		shr     dx, 6
+;		mov     ax, HDSize
+;		mov     dx, ax
+;		shl     ax, 10
+;		shr     dx, 6
+		mov	ax, HDSize_lo
+		mov	dx, HDSize_hi
 		sub     ax, 30
 		sbb     dx, 0
 		mov     cx, 63*255
@@ -2837,7 +2838,7 @@ DiskExtGetParams:
 		cmp     dl, 80h
 		jne     short notready
 		push    ax
-		mov     ax, HDSize   
+;		mov     ax, HDSize 
 		mov     bp, sp
 		mov     ds, [bp+8]
 		xor     bp, bp
@@ -2849,9 +2850,11 @@ DiskExtGetParams:
 		mov     word ptr [si+10], bp
 		mov     word ptr [si+12], 63     ; sectors/track
 		mov     word ptr [si+14], bp
+		mov	ax,HDSize_lo
 		mov     word ptr [si+16], ax	; hdsize high
-		shl     word ptr [si+16], 10
-		shr     ax, 6
+;		shl     word ptr [si+16], 10
+;		shr     ax, 6
+		mov	ax,HDSize_hi
 		mov     word ptr [si+18], ax	; hdsize low
 		mov     word ptr [si+20], bp
 		mov     word ptr [si+22], bp
@@ -3656,9 +3659,17 @@ int18 endp
 
 ; --------------------- INT 19h - OS Bootstrap loader ------------------
 int19 proc near
+;		push	ds
+;		pop	ax
+;		call	dbghex
+;		mov	al,FDPresent
+;		call	dbghex
 		mov     ax, 201h
 		mov     cx, 1
-		mov     dx, 00h
+		mov	dh,0
+		mov	dl,FDPresent
+		and     dl, 80h	; FDPresent is ff if no image is present - in which case we boot from HD.
+doboot:
 		push    0
 		pop     es
 		mov     bx, 7c00h
@@ -4014,8 +4025,6 @@ _writesectorloop:
 
 fdimgname:
 		db 'NEXTBOOTIMG',0,0
-fdpresent:
-		db 0
 
 		; Ask the control module to open an FD image file.  If this fails we'll disable floppy support.
 fdinit	proc near
@@ -4035,9 +4044,10 @@ imgnameloop:
 		call	dc_hi
 		jmp	short imgnameloop
 imgnamesent:
-		call	dc_lo	; Get response
-;		mov	fdpresent,al ; FIXME - fdpresent flag
 		pop	ds
+		call	dc_lo	; Get response
+		mov	FDPresent,al ; fdpresent flag, 0 if present, ff if error
+		call 	dbghex
 		ret
 fdinit  endp		
 ;---------------------  init SD ----------------------
@@ -4049,14 +4059,14 @@ sdinit  proc near       ; returns AX = num kilosectors
 		call	dc_lo
 		mov	ah,bh
 		pop	bx
-		mov	sdsize_hi,ax
+		mov	HDSize_hi,ax
 		push	bx
 		call	dc_hi
 		mov	bh,al
 		call	dc_lo
 		mov	ah,bh
 		pop	bx
-		mov	sdsize_lo,ax
+		mov	HDSize_lo,ax
 sdexit: 
 		ret
 sdinit endp

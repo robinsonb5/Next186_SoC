@@ -74,13 +74,12 @@ int main(int argc,char **argv)
 		while(1)
 		{
 			int cmd=dc_handshake();
-			if(!parity)
-				puts("Parity error\n");
+//			if(!parity)
+//				puts("Parity error\n");
 
 			switch(cmd)
 			{
 				case DC_NOP:
-//					puts("NOP\n");
 					dc_send(DC_NOP);
 					break;
 
@@ -115,19 +114,19 @@ int main(int argc,char **argv)
 
 				case DC_WRITEBLOCK:
 				case DC_FDWRITEBLOCK:
-//					puts(" W");
 					dc_send(0); lba=dc_handshake()<<24;
 					dc_send(0); lba|=dc_handshake()<<16;
 					dc_send(0); lba|=dc_handshake()<<8;
 					dc_send(0); lba|=dc_handshake();
 					dc_send(0); count=dc_handshake();
-					_cvt(lba,0,16);
+					putchar('w');
+//					_cvt(lba,0,16);
 //					puts("Got addr and count\n");
 					// FIXME - send some kind of error code here
 					while(count--)
 					{
 						int *ptr=(int *)sector_buffer;
-						puts("W\n");
+//						puts("W\n");
 						if(cmd==DC_FDWRITEBLOCK)	// Must do this before receiving data,
 							FileSeek(&file,lba++);	// since it trashes the sector buffer!
 
@@ -144,7 +143,7 @@ int main(int argc,char **argv)
 							v=(v<<8)|dc_handshake();
 							*ptr++=v;
 						}
-						puts("w\n");
+//						puts("w\n");
 						if(cmd==DC_FDWRITEBLOCK)
 							FileWrite(&file,sector_buffer);
 						else
@@ -156,6 +155,7 @@ int main(int argc,char **argv)
 
 				case DC_READBLOCK:
 				case DC_FDREADBLOCK:
+					putchar('r');
 	//				puts("Read\n");
 					dc_send(0); lba=dc_handshake()<<24;
 					dc_send(0); lba|=dc_handshake()<<16;
@@ -170,8 +170,8 @@ int main(int argc,char **argv)
 						if(cmd==DC_FDREADBLOCK)
  						{
 							// FIXME - send error if there's no fdimage.
-							puts(" FS");
-							_cvt(lba,0,16);
+//							puts(" FS");
+//							_cvt(lba,0,16);
 							putchar(' ');
 							FileSeek(&file,lba++);
 							FileRead(&file,sector_buffer);
@@ -252,7 +252,7 @@ int main(int argc,char **argv)
 #endif
 				default:
 					_cvt(cmd,0,16);
-					puts("??? ");
+					puts("? ");
 					break;
 			}
 		}
