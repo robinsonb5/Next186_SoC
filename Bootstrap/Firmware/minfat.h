@@ -104,6 +104,7 @@ unsigned int GetFATLink(unsigned int cluster);
 unsigned int FileNextSector(fileTYPE *file);
 unsigned int FileOpen(fileTYPE *file, const char *name);
 unsigned int FileRead(fileTYPE *file, unsigned char *pBuffer);
+unsigned int FileWrite(fileTYPE *file, unsigned char *pBuffer);
 //unsigned char FileReadEx(fileTYPE *file, unsigned char *pBuffer, unsigned long nSize);
 
 unsigned int FileSeek(fileTYPE *file,int block);

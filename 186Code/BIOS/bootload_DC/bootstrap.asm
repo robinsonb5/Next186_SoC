@@ -150,6 +150,7 @@ flush:
 		jnz		flush
 
 ;		AMR - modify to load the BIOS over RS232 rather than a program.	
+
 		xor	si,si
 		mov	bx,2000h
 
@@ -256,7 +257,7 @@ endreloc:
 handshake:
 
 		ret
-
+biosfile  db  'BIOSNEXT186',0
 booterrmsg  db  'Waiting for BIOS image...', 0
 
 

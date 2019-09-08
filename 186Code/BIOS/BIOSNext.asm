@@ -46,6 +46,7 @@
 
 ; Modifications by AMR to support loading from a separate control module.
 ; Advantages: non-SDHC support, BIOS can be loaded from a file, potential hardfile support
+; Also building via makefile with jwasm.
 
 
 .186
@@ -196,7 +197,6 @@ bios:
 
 sdsize_lo dw 0	; little endian
 sdsize_hi dw 0
-is_sdhc     db 0
 
 biosmsg     db 'Next186 Chameleon SoC PC BIOS (C) 2017 Nicolae Dumitrache', 0
 msgmb       db 'MB SD Card', 13, 10, 0
@@ -422,6 +422,7 @@ COMFlush:
 		push	cs
 		pop	ds
 		call    sdinit
+		call	fdinit
 ;		mov     HDSize, ax
 		mov	ax,sdsize_lo
 		mov	bx,sdsize_hi
@@ -2570,6 +2571,7 @@ diskbasetable:
 DiskGetType:
 		cmp     dl, 80h
 		jne     short DiskTypeFloppy ; ah=0, drive not present
+		; FIXME - put sdsize_hi in dx, sdsize_lo in cx
 		mov     cx, HDSize      
 		mov     dx, cx
 		test    cx, cx
@@ -2605,6 +2607,7 @@ DiskExtInstCheck:
 
 
 DiskGetStatus:
+		; FIXME - should probably be specific to each drive?
 		push	ax
 		mov	al,0feh
 		call	dc_hi
@@ -2616,6 +2619,7 @@ DiskGetStatus:
 		ret
 	  
 DiskVerify:
+		; FIXME - need to support verify on floppy disks.
 		push	ax
 		mov	al,0feh
 		call	dc_hi
@@ -2647,10 +2651,14 @@ DiskWrite:
 		call	dc_lo
 		pop	ax
 
-		cmp	dl,80h
-		jne	notready
 		mov     bp, sdwrite
-		jmp     short   DiskRead1
+		cmp	dl,80h ; hard drive
+		je	short DiskRead1
+
+		cmp	dl,00h ; floppy drive
+		jne	notready
+		mov     bp, fdwrite
+		jmp     short   DiskRead1FD
 
 DiskRead:
 		test    al, al
@@ -2658,18 +2666,17 @@ DiskRead:
 		mov     ah, 4
 		test    cl, 3fh
 		jz      short DiskReadend   ; bad sector 0
+
+		mov     bp, sdread
+
 		cmp	dl, 80h
 		je	short DiskRead1
+
 		cmp	dl,0h
 		jne	notready
-		push	ax
-		mov	al,0feh
-		call	dc_hi
-		mov	al,'f'
-		call	dc_lo
-		pop	ax
-
 		mov	bp, fdread
+
+DiskRead1FD:
 		pusha
 		mov     ah, 0
 		push	ax
@@ -2677,9 +2684,6 @@ DiskRead:
 		jmp	DiskReadCont
 
 DiskRead1:        
-;		cmp     dl, 80h
-;		jne     short notready
-		mov     bp, sdread
 		pusha
 		mov     ah, 0
 		push    ax
@@ -2687,7 +2691,7 @@ DiskRead1:
 DiskReadCont:
 		pop     cx
 
-		push    cx        
+		push    cx
 		call    bp              ; DX:AX sector, ES:BX buffer, CX=sectors, returns AX=read sectors
 
 		pop     cx
@@ -2845,10 +2849,10 @@ DiskExtGetParams:
 		mov     word ptr [si+10], bp
 		mov     word ptr [si+12], 63     ; sectors/track
 		mov     word ptr [si+14], bp
-		mov     word ptr [si+16], ax
+		mov     word ptr [si+16], ax	; hdsize high
 		shl     word ptr [si+16], 10
 		shr     ax, 6
-		mov     word ptr [si+18], ax
+		mov     word ptr [si+18], ax	; hdsize low
 		mov     word ptr [si+20], bp
 		mov     word ptr [si+22], bp
 		mov     word ptr [si+24], 512   ; bytes/sector
@@ -3909,95 +3913,6 @@ prtse:
 		ret
 
 
-
-;---------------------  read/write byte ----------------------
-sdrb:   
-		mov		al, 0ffh
-sdsb:               ; in AL=byte, DX = 03dah, out AX=result
-		out		dx, al
-		add		ax, ax
-		nop
-		out		dx, al
-		add		ax, ax
-		nop
-		out		dx, al
-		add		ax, ax
-		nop
-		out		dx, al
-		add		ax, ax
-		nop
-		out		dx, al
-		add		ax, ax
-		nop
-		out		dx, al
-		add		ax, ax
-		nop
-		out		dx, al
-		add		ax, ax
-		nop
-		out		dx, al
-		add		ax, ax
-		in		ax, dx
-		ret
-
-;---------------------  write block ----------------------
-sdwblk:              ; in DS:SI=data ptr, DX=03dah, CX=size
-	shr     cx, 1
-sdwblk1:
-		lodsb
-		call		sdsb
-		lodsb
-		call		sdsb
-		loop		sdwblk1
-		ret
-
-;---------------------  read block ----------------------
-sdrblk:              ; in DS:DI=data ptr, DX=03dah, CX=size, Returns CF = 0
-	shr     cx, 1
-sdrblk1:
-		call		sdrb
-		mov		[di], ah
-		call	sdrb
-		mov		[di+1], ah
-		add		di, 2
-		loop	sdrblk1
-		or		ax, ax
-		ret
-
-
-
-;---------------------  verify block ----------------------
-sdvblk:              ; in DI=data ptr, DX=03dah, CX=size. Returns CF=1 on error
-		push    bx
-		xor     bl, bl
-sdvblk1:
-		call    sdrb
-		sub     ah, [di]
-		or      bl, ah
-		inc     di
-		loop    short sdvblk1
-		neg     bl  ; CF=1 if BL != 0
-		pop     bx
-		ret
-
-;---------------------  write command ----------------------
-sdcmd8T:
-		call    sdrb
-sdcmd:              ; in SI=6 bytes cmd buffer, DX=03dah, out AH = 0ffh on error
-		mov     cx, 6
-		call    sdwblk
-sdresp:
-		xor     si, si
-sdresp1:
-		call    sdrb
-		inc     si
-		jz      short sdcmd1
-		cmp     ah, 0ffh
-		je      short sdresp1
-sdcmd1: ret         
-
-
-
 ;---------------------  read ----------------------
 sdverify:
 		; FIXME - implement verifications
@@ -4005,8 +3920,9 @@ sdverify:
 
 fdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 		push ax
-		mov	ax,85h
+		mov	ax,03h
 		jmp	short sdread1
+
 sdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 
 		push ax
@@ -4053,11 +3969,17 @@ _readsectorloop:
 		ret
 
 
+fdwrite:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
+		push ax
+		mov	ax,04h
+		jmp	short sdwrite1
+
 ;---------------------  write ----------------------
 sdwrite:   ; DX:AX sector, ES:BX buffer, CX=sectors, returns AX=wrote sectors
 
 		push ax
 		mov	ax,84h  ; Write block command
+sdwrite1:
 		call	dc_hi	; cmd
 		mov	al,dh
 		call	dc_lo	; lba 1
@@ -4090,7 +4012,34 @@ _writesectorloop:
 		pop ax
 		ret
 
-		
+fdimgname:
+		db 'NEXTBOOTIMG',0,0
+fdpresent:
+		db 0
+
+		; Ask the control module to open an FD image file.  If this fails we'll disable floppy support.
+fdinit	proc near
+		push	ds
+		push	cs
+		pop	ds
+		mov	si,fdimgname
+
+		mov	al,090h ; DC_SETIMAGE
+		call	dc_hi
+imgnameloop:
+		lodsb
+		test	al,al
+		jz	short imgnamesent
+		call	dc_lo
+		lodsb
+		call	dc_hi
+		jmp	short imgnameloop
+imgnamesent:
+		call	dc_lo	; Get response
+;		mov	fdpresent,al ; FIXME - fdpresent flag
+		pop	ds
+		ret
+fdinit  endp		
 ;---------------------  init SD ----------------------
 sdinit  proc near       ; returns AX = num kilosectors
 		mov	al,82h
@@ -4110,46 +4059,7 @@ sdinit  proc near       ; returns AX = num kilosectors
 		mov	sdsize_lo,ax
 sdexit: 
 		ret
-
-skipblksize:
-		mov     si, offset SD_CMD9 ; get size info
-		push    cs
-		pop     ds
-		call    sdcmd8T
-		or      ah, ah
-		jnz     short sdexit
-		call    sdresp     ; wait for 0feh token
-		cmp     ah, 0feh
-		jne     short sdexit
-		mov     cl, 18       ; 16bytes + 2bytes CRC
-		sub     sp, cx
-		mov     di, sp
-		push    ss
-		pop     ds
-		call    sdrblk	; FIXME - need to handle non-SDHC cards here - likely to be a ballache.
-		mov     cx, [di-10]
-		rol     cx, 8
-		inc     cx
-		mov     sp, di	; di has been incremented by sdrblk, yes?
-		jmp	sdexit
 sdinit endp
-
-SD_CMD0     db  40h, 0, 0, 0, 0, 95h
-SD_CMD8     db  48h, 0, 0, 1, 0aah, 087h
-SD_CMD9     db  49h, 0, 0, 0, 0, 0ffh
-SD_CMD12    db  4ch, 0, 0, 0, 0, 0ffh
-SD_CMD16    db  50h, 0, 0, 2, 00, 0ffh	; Set blocksize to 512
-SD_CMD41    db  69h, 40h, 0, 0, 0, 0ffh
-SD_CMD55    db  77h, 0, 0, 0, 0, 0ffh
-SD_CMD58    db  7ah, 0, 0, 0, 0, 0ffh
-
-;#define cmd_CMD8(x) cmd_write(0x870048,0x1AA)
-;#define cmd_CMD16(x) cmd_write(0xFF0050,x)
-;#define cmd_CMD41(x) cmd_write(0x870069,0x40000000)
-;#define cmd_CMD55(x) cmd_write(0xff0077,0)
-;#define cmd_CMD58(x) cmd_write(0xff007A,0)
-
-
 
 
 Pal256:

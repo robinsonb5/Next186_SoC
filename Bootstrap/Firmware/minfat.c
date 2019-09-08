@@ -336,6 +336,21 @@ unsigned int FileRead(fileTYPE *file, unsigned char *pBuffer)
         return(1);
 }
 
+int _cvt(int val, char *buf, int radix);
+
+unsigned int FileWrite(fileTYPE *file, unsigned char *pBuffer)
+{
+    unsigned long sb;
+
+    sb = data_start;                         // start of data in partition
+    sb += cluster_size * (file->cluster-2);  // cluster offset
+    sb += file->sector & cluster_mask;      // sector offset in cluster
+    if (!sd_write_sector(sb, pBuffer)) // write sector to drive
+        return(0);
+    else
+        return(1);
+}
+
 fileTYPE file;
 
 unsigned int FileSeek(fileTYPE *f,int block)
