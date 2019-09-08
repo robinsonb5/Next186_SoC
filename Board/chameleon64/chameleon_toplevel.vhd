@@ -410,14 +410,14 @@ myReset : entity work.gen_reset
 		-- Keyboards
 			keys => c64_keys,
 			restore_key_n => c64_restore_key_n,
-			c64_nmi_n => c64_nmi_n
+			c64_nmi_n => c64_nmi_n,
 
 --
 --			iec_clk_out : in std_logic := '1';
 --			iec_dat_out : in std_logic := '1';
---			iec_atn_out => rs232_txd,
+			iec_atn_out => rs232_txd,
 --			iec_srq_out : in std_logic := '1';
---			iec_clk_in => rs232_rxd
+			iec_clk_in => rs232_rxd
 --			iec_dat_in : out std_logic;
 --			iec_atn_in : out std_logic;
 --			iec_srq_in : out std_logic
@@ -484,9 +484,9 @@ sys_inst: entity work.Next186SOCWrapper
 		LED => socleds,
 		BTN_RESET=>not n_reset,
 		BTN_NMI=>'0',
-		RS232_DCE_RXD=>'1',
-		RS232_DCE_TXD=>open,
-		RS232_EXT_RXD=>'1',
+		RS232_DCE_RXD=>rs232_rxd,
+		RS232_DCE_TXD=>rs232_txd,
+		RS232_EXT_RXD=>rs232_rxd,
 --		.RS232_EXT_TXD(),
 		SD_n_CS=>spi_cs,
 		SD_DI=>spi_mosi,

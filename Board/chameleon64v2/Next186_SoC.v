@@ -68,7 +68,14 @@ module Next186_SoC(
 	
 );
 
-	wire CLK44100x256;
+	wire clk_25;
+	wire memclk;
+	wire clk_cpu;
+	wire clk_dsp;
+	wire clk44100x256;
+	wire clk14745600;
+	wire pll1_locked;
+	wire pll2_locked;
 	wire r0, g0, b0;
 	wire [2:0]led; // {mem_access, sd_access, halt};
  	wire ps2_kb_clk_nOE;
@@ -81,27 +88,61 @@ module Next186_SoC(
 	assign flash_ncs = 1'b1;	// flash inactive
 	assign rtc_cs = 1'b0;		// rtc inactive
 	
-	wire SDR_CLK;
-	wire clk_25;
-	dd_buf sdrclk_buf
+//	dd_buf sdrclk_buf
+//	(
+//		.datain_h(1'b1),
+//		.datain_l(1'b0),
+//		.outclock(SDR_CLK),
+//		.dataout(ram_clk)
+//	);
+
+
+	Clock_50to100Split mypll1
 	(
-		.datain_h(1'b1),
-		.datain_l(1'b0),
-		.outclock(SDR_CLK),
-		.dataout(ram_clk)
+		.inclk0(clk50m),
+		.c0(clk_25),
+		.c1(memclk),
+		.c2(ram_clk),
+		.locked(pll1_locked)
+	);
+		
+	Clock_50to100Split_2ndRAM mypll2
+	(
+		.inclk0(clk50m),
+		.c0(clk_cpu),
+		.c1(clk_dsp),
+		.locked(pll2_locked)
+	);
+		
+	Clock_50toSlowClocks mypll3
+	(
+		.inclk0(clk50m),
+		.c0(clk44100x256),
+		.c1(clk14745600)
 	);
 
-	system sys_inst
+
+
+	system
+	#(
+		.enableDSP(0)	 // The BlockRAM's better spent on debugging for now.
+	) sys_inst
 	(
 		.CLK_50MHZ(clk50m),
+		.clk_25(clk_25),
+		.clk_sdr(memclk),
+		.clk_cpu(clk_cpu),
+		.clk_dsp(clk_dsp),
+		.CLK44100x256(clk44100x256),
+		.CLK14745600(clk14745600),
 		.VGA_R({red, r0}),
 		.VGA_G({grn, g0}),
 		.VGA_B({blu, b0}),
 		.frame_on(),
 		.VGA_HSYNC(hsync_n),
 		.VGA_VSYNC(vsync_n),
-		.clk_25(clk_25),
-		.sdr_CLK_out(SDR_CLK),
+//		.clk_25(clk_25),
+//		.sdr_CLK_out(SDR_CLK),
 		.sdr_n_CS_WE_RAS_CAS({ram_we, ram_ras, ram_cas}),
 		.sdr_BA(ram_ba),
 		.sdr_ADDR(ram_a),
