@@ -268,11 +268,12 @@ dly1:
 
 rs232boot:
 		xor		si,si
+rs232loop:
 		call		srecb
 		mov		[si], ah
 		inc		si
 		dec		bx
-		jnz		rs232boot
+		jnz		rs232loop
 
 _boot:
 		xor		sp, sp

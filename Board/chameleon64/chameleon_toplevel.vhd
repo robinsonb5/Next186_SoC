@@ -10,7 +10,6 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.numeric_std.ALL;
 
 library work;
-use work.Toplevel_Config.ALL;
 
 -- -----------------------------------------------------------------------
 
@@ -78,7 +77,16 @@ end entity;
 architecture rtl of chameleon_toplevel is
 	
 -- System clocks
-	signal clk : std_logic;
+	signal clk_25 : std_logic;
+	signal clk_50 : std_logic;
+	signal clk_100 : std_logic;
+	signal memclk : std_logic;
+	signal clk_cpu : std_logic;
+	signal clk_dsp : std_logic;
+	signal clk44100x256 : std_logic;
+	signal clk14745600 : std_logic;
+	signal pll1_locked : std_logic;
+	signal pll2_locked : std_logic;
 
 	signal reset_button_n : std_logic;
 	signal pll_locked : std_logic;
@@ -96,6 +104,7 @@ architecture rtl of chameleon_toplevel is
 -- LEDs
 	signal led_green : std_logic;
 	signal led_red : std_logic;
+	signal socleds : std_logic_vector(7 downto 0);
 
 -- PS/2 Keyboard
 	signal ps2_keyboard_clk_in : std_logic;
@@ -179,13 +188,39 @@ begin
 -- -----------------------------------------------------------------------
 -- Clocks and PLL
 -- -----------------------------------------------------------------------
+--	mypll : entity work.Clock_8to100Split
+--		port map (
+--			inclk0 => clk8,
+--			c0 => clk,
+--			c1 => sdram_clk,
+----			c2 => clk,
+--			locked => pll_locked
+--		);
+		
 	mypll : entity work.Clock_8to100Split
 		port map (
 			inclk0 => clk8,
-			c0 => clk,
-			c1 => sdram_clk,
---			c2 => clk,
-			locked => pll_locked
+			c0 => clk_25,
+			c1 => memclk, -- the same as c1,
+			c2 => sdram_clk, -- as fast as we can get away with.  133Mhz?
+			locked => pll1_locked
+		);
+
+		mypll2 : entity work.Clock_8to100Split_2ndRAM
+		port map (
+			inclk0 => clk8,
+			c0 => clk_cpu, -- About 60Mhz?
+			c1 => clk_dsp, -- About 60MHz?
+			c2 => clk_100, -- around 100 MHz for the chameleon builtin modules
+			c3 => clk_50,
+			locked => pll2_locked
+		);
+
+	mypll3 : entity work.Clock_8toSlowClocks
+		port map (
+			inclk0 => clk8,
+			c0 => clk44100x256, -- 11.2896Mhz
+			c1 => clk14745600 -- 14.6756 MHz
 		);
 
 -- -----------------------------------------------------------------------
@@ -290,7 +325,7 @@ my1mhz : entity work.chameleon_1mhz
 		clk_ticks_per_usec => 100
 	)
 	port map(
-		clk => clk,
+		clk => clk_100,
 		ena_1mhz => ena_1mhz
 	);
 
@@ -299,7 +334,7 @@ myReset : entity work.gen_reset
 		resetCycles => 131071
 	)
 	port map (
-		clk => clk,
+		clk => clk_100,
 		enable => '1',
 		button => not freeze_n,
 		nreset => n_reset
@@ -315,8 +350,8 @@ myReset : entity work.gen_reset
 		)
 		port map (
 		-- Clocks
-			clk => clk,
-			clk_mux => clk,
+			clk => clk_100,
+			clk_mux => clk_100,
 			ena_1mhz => ena_1mhz,
 			reset => not n_reset,
 			
@@ -375,81 +410,21 @@ myReset : entity work.gen_reset
 		-- Keyboards
 			keys => c64_keys,
 			restore_key_n => c64_restore_key_n,
-			c64_nmi_n => c64_nmi_n,
+			c64_nmi_n => c64_nmi_n
 
 --
 --			iec_clk_out : in std_logic := '1';
 --			iec_dat_out : in std_logic := '1';
-			iec_atn_out => rs232_txd,
+--			iec_atn_out => rs232_txd,
 --			iec_srq_out : in std_logic := '1';
-			iec_clk_in => rs232_rxd
+--			iec_clk_in => rs232_rxd
 --			iec_dat_in : out std_logic;
 --			iec_atn_in : out std_logic;
 --			iec_srq_in : out std_logic
 	
 		);
 
-
-	myproject : entity work.VirtualToplevel
-		generic map(
-			sdram_rows => 13,
-			sdram_cols => 9,
-			sysclk_frequency => 1000
-		)
-		port map(
-			clk => clk,
-			reset_in => freeze_n and pll_locked,
-			
-			-- SDRAM
-			sdr_addr => sd_addr(12 downto 0),
-			sdr_data(15 downto 0) => sd_data,
-			sdr_ba(1) => sd_ba_1,
-			sdr_ba(0) => sd_ba_0,
-			sdr_cke => open, -- sd_cke,
-			sdr_dqm(1) => sd_udqm,
-			sdr_dqm(0) => sd_ldqm,
-			sdr_cs => open,
-			sdr_we => sd_we_n,
-			sdr_cas => sd_cas_n,
-			sdr_ras => sd_ras_n,
-			
-			-- VGA
-			vga_red => vga_r,
-			vga_green => vga_g,
-			vga_blue => vga_b,
-			
-			vga_hsync => nHSync,
-			vga_vsync => nVSync,
-			
-			vga_window => vga_window,
-
-			-- UART
-			rxd => rs232_rxd, -- rs232_rxd,
-			txd => rs232_txd, -- rs232_txd,
-			
-			-- PS/2
-			ps2k_clk_in => ps2_keyboard_clk_in,
-			ps2k_dat_in => ps2_keyboard_dat_in,
-			ps2k_clk_out => ps2_keyboard_clk_out,
-			ps2k_dat_out => ps2_keyboard_dat_out,
-			ps2m_clk_in => ps2_mouse_clk_in,
-			ps2m_dat_in => ps2_mouse_dat_in,
-			ps2m_clk_out => ps2_mouse_clk_out,
-			ps2m_dat_out => ps2_mouse_dat_out,
-			
-			-- SD Card interface
-			spi_cs => spi_cs,
-			spi_miso => spi_miso,
-			spi_mosi => spi_mosi,
-			spi_clk => spi_clk,
-			
-			-- Audio - FIXME abstract this out, too.
-			audio_l => audio_l,
-			audio_r => audio_r
-	);
-
 	
-dither1: if Toplevel_UseVGA=true generate
 -- Dither the video down to 5 bits per gun.
 
 	mydither : component video_vga_dither
@@ -457,7 +432,7 @@ dither1: if Toplevel_UseVGA=true generate
 			outbits => 5
 		)
 		port map(
-			clk=>clk,
+			clk=>clk_100,
 			hsync=>nHSync,
 			vsync=>nVSync,
 			vid_ena=>vga_window,
@@ -468,38 +443,75 @@ dither1: if Toplevel_UseVGA=true generate
 			oGreen => grn,
 			oBlue => blu
 		);
-end generate;
-	
-	
--- Do we have audio?  If so, instantiate a two DAC channels.
-audio2: if Toplevel_UseAudio = true generate
-leftsd: component hybrid_pwm_sd
-	port map
-	(
-		clk => clk,
-		n_reset => n_reset,
-		din(15) => not audio_l(15),
-		din(14 downto 0) => std_logic_vector(audio_l(14 downto 0)),
-		dout => sigmaL
-	);
-	
-rightsd: component hybrid_pwm_sd
-	port map
-	(
-		clk => clk,
-		n_reset => n_reset,
-		din(15) => not audio_r(15),
-		din(14 downto 0) => std_logic_vector(audio_r(14 downto 0)),
-		dout => sigmaR
-	);
-end generate;
 
--- No audio?  Make the audio pins high Z.
 
-audio3: if Toplevel_UseAudio = false generate
-	sigmaL<='Z';
-	sigmaR<='Z';
-end generate;
+vga_window<='1';
+
+vga_r(1 downto 0)<="10";
+vga_g(1 downto 0)<="10";
+vga_b(1 downto 0)<="10";
+
+sys_inst: entity work.Next186SOCWrapper
+	generic map (
+		RowBits => 13,
+		ColBits => 9,
+		enableDSP => 0, -- The BlockRAM's better spent on debugging for now.
+		cpuclkfreq => 625
+	)
+	port map (
+		CLK_50MHZ => clk_50,
+		clk_25=>clk_25,
+		clk_sdr => memclk,
+		clk_cpu => clk_cpu,
+		clk_dsp => clk_dsp,
+		CLK44100x256 => clk44100x256,
+		CLK14745600=>clk14745600,
+		unsigned(VGA_R) => vga_r(7 downto 2),
+		unsigned(VGA_G) => vga_g(7 downto 2),
+		unsigned(VGA_B) => vga_b(7 downto 2),
+		VGA_HSYNC => nHSync,
+		VGA_VSYNC => nVSync,
+		sdr_n_CS_WE_RAS_CAS(3)=>open,
+		sdr_n_CS_WE_RAS_CAS(2)=>sd_we_n,
+		sdr_n_CS_WE_RAS_CAS(1)=>sd_ras_n,
+		sdr_n_CS_WE_RAS_CAS(0)=>sd_cas_n,
+		sdr_BA(1) => sd_ba_1,
+		sdr_BA(0) => sd_ba_0,
+		sdr_ADDR => sd_addr,
+		sdr_DATA => sd_data,
+		sdr_DQM(1) => sd_udqm,
+		sdr_DQM(0) => sd_ldqm,
+		LED => socleds,
+		BTN_RESET=>not n_reset,
+		BTN_NMI=>'0',
+		RS232_DCE_RXD=>'1',
+		RS232_DCE_TXD=>open,
+		RS232_EXT_RXD=>'1',
+--		.RS232_EXT_TXD(),
+		SD_n_CS=>spi_cs,
+		SD_DI=>spi_mosi,
+		SD_CK=>spi_clk,
+		SD_DO=>spi_miso,
+		AUD_L=>sigmaL,
+		AUD_R=>sigmaR,
+
+	 	PS2_CLK1=>ps2_keyboard_clk_in,
+ 	   PS2_CLK1_nOE=>ps2_keyboard_clk_out,
+		PS2_DATA1=>ps2_keyboard_dat_in,
+		PS2_DATA1_nOE=>ps2_keyboard_dat_out,
+
+	 	PS2_CLK2=>ps2_mouse_clk_in,
+ 	   PS2_CLK2_nOE=>ps2_mouse_clk_out,
+		PS2_DATA2=>ps2_mouse_dat_in,
+		PS2_DATA2_nOE=>ps2_mouse_dat_out,
+
+		RS232_HOST_RXD=>rs232_rxd
+--		RS232_HOST_TXD(rs232_txd)
+--		RS232_HOST_RST(),
+--		.GPIO(),
+--		.I2C_SCL(),
+--		.I2C_SDA(),
+	);
 
 
 end architecture;

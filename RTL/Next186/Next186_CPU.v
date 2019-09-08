@@ -1643,7 +1643,8 @@ module Next186_CPU(
 					endcase
 				end else begin
 					MREQ = 1'b0;
-					ISIZE = 0;
+					ISIZE = 1; // jepalza, antes "0", sirve para engañar a algunos programas que detectan CPU y se cuelgan
+//					ISIZE = 0;
 					IRQ = 1'b1;
 				end
 // --------------------------------  SALC --------------------------------
