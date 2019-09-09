@@ -305,7 +305,7 @@ set_location_assignment PIN_D8 -to ps2iec_sel
 set_location_assignment PIN_N14 -to ps2_mouse_dat
 set_location_assignment PIN_P11 -to ps2_mouse_clk
 set_location_assignment PIN_M16 -to ps2_kb_clk
-set_location_assignment PIN_N9 -to ps2_kb_dat33
+set_location_assignment PIN_N9 -to ps2_kb_dat
 set_location_assignment PIN_A7 -to iec_atn_out
 set_location_assignment PIN_J13 -to iec_clk_out
 set_location_assignment PIN_L13 -to iec_dat_out
@@ -372,12 +372,12 @@ set_location_assignment PIN_B1 -to low_d[4]
 set_location_assignment PIN_C3 -to low_d[5]
 set_location_assignment PIN_C2 -to low_d[6]
 set_location_assignment PIN_C1 -to low_d[7]
-set_location_assignment PIN_T8 -to mmc_cd
+set_location_assignment PIN_T8 -to mmc_ncd
 set_location_assignment PIN_N5 -to mmc_ncs
 set_location_assignment PIN_L8 -to mmc_wp
 set_location_assignment PIN_A15 -to nmi_in
 set_location_assignment PIN_C8 -to nmi_out
-set_location_assignment PIN_A8 -to phi2_n3
+set_location_assignment PIN_A8 -to phi2_n
 set_location_assignment PIN_M2 -to reset_btn
 set_location_assignment PIN_A14 -to reset_in
 set_location_assignment PIN_E7 -to romlh
