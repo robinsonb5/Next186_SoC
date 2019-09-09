@@ -8,7 +8,7 @@ entity Next186SOCWrapper is
 	Generic
 	(
 		RowBits : integer;
-		CoLBits : integer;
+		ColBits : integer;
 		enableDSP : integer;
 		cpuclkfreq : integer
 	);

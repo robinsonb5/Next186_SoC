@@ -122,9 +122,11 @@ module Next186_SoC(
 	);
 
 
-
-	system
+	Next186SOCWrapper
 	#(
+	   .RowBits(13),
+		.ColBits(9),
+		.cpuclkfreq(625),
 		.enableDSP(0)	 // The BlockRAM's better spent on debugging for now.
 	) sys_inst
 	(

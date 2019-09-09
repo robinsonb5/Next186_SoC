@@ -154,7 +154,7 @@ flush:
 ;		xor	si,si
 		mov	bx,2000h
 
-		jmp	loadbios
+		jmp	short loadbios
 
 
 ; --- host datachannel ---
@@ -198,9 +198,9 @@ imgnameloop:
 		jmp	short imgnameloop
 imgnamesent:
 		call	dc_lo	; Get response
-		pop	ds
+		pop	es
 		test	al,al	; 0 for success
-		jne	rs232boot
+		jne	short rs232boot
 
 		mov	al,03h	; read from image file
 		call	dc_hi	; cmd
@@ -216,7 +216,7 @@ imgnamesent:
 		mov	al,16	; 16 sectors for 8kb BIOS
 		call	dc_lo
 
-		mov	cl,16	; sectors -> 16-bit words
+		mov	cx,4096	; sectors -> 16-bit words
 		xor	di,di	; destination
 _readsectorloop:
 ;		call 	dc_hi	; First byte of response came at last dc_lo
@@ -227,14 +227,16 @@ _readsectorloop:
 		stosw
 		call 	dc_lo
 		dec	cx
-		jne	_readsectorloop
+		jne	short _readsectorloop
 
 		mov	al,80h 	; NOP
 		call	dc_hi	; restore parity
 		mov	al,80h 	; NOP
 		call	dc_lo	; restore parity
 
-		je	_boot
+		mov	si,di
+
+		jmp	_boot
 
 
 ; ----------------  serial receive byte 115200 bps --------------
