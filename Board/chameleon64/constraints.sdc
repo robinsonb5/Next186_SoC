@@ -31,7 +31,7 @@ derive_pll_clocks -create_base_clocks
 
 # create_generated_clock -name spi_clk -source [get_nets {inst|altpll_component|auto_generated|wire_pll1_clk[0]}] -divide_by 2 [get_nets {inst3|sck}]
 
-create_generated_clock -name sdram_clk_pin -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[1]}] [get_ports {sdram_clk}]
+create_generated_clock -name sdram_clk_pin -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[2]}] [get_ports {sdram_clk}]
 # create_generated_clock -name sysclk_slow -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[2]}]
 create_generated_clock -name sysclk_fast -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[0]}]
 
@@ -67,8 +67,8 @@ set_output_delay -clock sysclk_fast -min 0.5 [get_ports mux*]
 
 # Multicycles
 
-set_multicycle_path -from [get_clocks {sdram_clk_pin}] -to [get_clocks {mypll|altpll_component|auto_generated|pll1|clk[0]}] -setup -end 2
-set_multicycle_path -from [get_clocks {sdram_clk_pin}] -to [get_clocks {mypll|altpll_component|auto_generated|pll1|clk[0]}] -setup -end 2
+set_multicycle_path -from [get_clocks {sdram_clk_pin}] -to [get_clocks {mypll|altpll_component|auto_generated|pll1|clk[1]}] -setup -end 2
+set_multicycle_path -from [get_clocks {sdram_clk_pin}] -to [get_clocks {mypll|altpll_component|auto_generated|pll1|clk[1]}] -setup -end 2
 
 #set_multicycle_path -from {sd_data[*]} -to {TG68Test:mytg68test|sdram:mysdram|vga_data[*]} -setup -end 2
 #set_multicycle_path -from {sd_data[*]} -to {TG68Test:mytg68test|sdram:mysdram|sdata_reg[*]} -setup -end 2

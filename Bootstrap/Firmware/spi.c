@@ -222,19 +222,22 @@ int spi_init()
 	int i;
 	int r;
 	sd_is_sdhc=1;
-	SPI_CS(0);	// Disable CS
-	spi_spin();
+//	SPI_CS(0);	// Disable CS
+//	spi_spin();
 	puts("SPI");
-	DBG("Activating CS\n");
-	SPI_CS(1);
 	i=8;
 	while(--i)
 	{
+		SPI_CS(0);	// Disable CS
+		spi_spin();
+		DBG("Activating CS\n");
+		SPI_CS(1);
 		if(cmd_reset()==1) // Enable SPI mode
 			i=1;
 		DBG("Sent reset command\n");
 		if(i==2)
 		{
+			puts("IERR");
 			DBG("SD card initialization error!\n");
 			return(0);
 		}

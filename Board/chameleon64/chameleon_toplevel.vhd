@@ -87,6 +87,7 @@ architecture rtl of chameleon_toplevel is
 	signal clk14745600 : std_logic;
 	signal pll1_locked : std_logic;
 	signal pll2_locked : std_logic;
+	signal pll3_locked : std_logic;
 
 	signal reset_button_n : std_logic;
 	signal pll_locked : std_logic;
@@ -220,104 +221,12 @@ begin
 		port map (
 			inclk0 => clk8,
 			c0 => clk44100x256, -- 11.2896Mhz
-			c1 => clk14745600 -- 14.6756 MHz
+			c1 => clk14745600, -- 14.6756 MHz
+			locked => pll3_locked
 		);
 
--- -----------------------------------------------------------------------
--- MUX CPLD
--- -----------------------------------------------------------------------
---	-- MUX clock
---	process(clk)
---	begin
---		if rising_edge(clk) then
---			mux_clk_reg <= not mux_clk_reg;
---		end if;
---	end process;
---
---	-- MUX read
---	process(clk)
---	begin
---		if rising_edge(clk) then
---			if mux_clk_reg = '1' then
---				case mux_reg is
-----				when X"6" =>
-----					irq_n <= mux_q(2);
---				when X"B" =>
---					reset_button_n <= mux_q(1);
-----					ir <= mux_q(3);
---				when X"A" =>
-----					vga_id <= mux_q;
---				when X"E" =>
---					ps2_keyboard_dat_in <= mux_q(0);
---					ps2_keyboard_clk_in <= mux_q(1);
---					ps2_mouse_dat_in <= mux_q(2);
---					ps2_mouse_clk_in <= mux_q(3);
---				when others =>
---					null;
---				end case;
---			end if;
---		end if;
---	end process;
---
---	-- MUX write
---	process(clk)
---	begin
---		if rising_edge(clk) then
-----			docking_ena <= '0';
---			if mux_clk_reg = '1' then
---				mux_reg<=X"C";
---				mux_d_reg(3) <= '1'; -- usart_rx;	-- AMR transmit to Chameleons uC
---				mux_d_reg(2) <= spi_cs;
---				mux_d_reg(1) <= spi_mosi;
---				mux_d_reg(0) <= spi_clk;
---
---				case mux_reg is
---				when X"7" =>
---					mux_d_regd <= "1111";
---					mux_regd <= X"6";
---				when X"6" =>
---					mux_d_regd <= "1111";
---					mux_regd <= X"8";
---				when X"8" =>
---					mux_d_regd <= "1111";
---					mux_regd <= X"A";
---				when X"A" =>
---					mux_d_regd <= "10" & led_green & led_red;
---					mux_regd <= X"B";
---				when X"B" =>
---				   -- RS232 serial over IEC port; TxD -> ATN as per Christian Vogelgsang's Minimig core
-----					mux_d_reg <= iec_reg;
---					mux_d_regd <= "1111";
---					mux_d_regd(3) <= rs232_txd; -- ATN
---					mux_regd <= X"D";
-----					docking_ena <= '1';
---				when X"C" =>
---					mux_reg <= mux_regd;
---					mux_d_reg <= mux_d_regd;
---				when X"D" =>
---					rs232_rxd <= mux_q(1); -- IEC_CLK -> RxD
---					mux_d_regd(0) <= ps2_keyboard_dat_out;
---					mux_d_regd(1) <= ps2_keyboard_clk_out;
---					mux_d_regd(2) <= ps2_mouse_dat_out;
---					mux_d_regd(3) <= ps2_mouse_clk_out;
---					mux_regd <= X"E";
---				when X"E" =>
---					mux_d_regd <= "1111";
---					mux_regd <= X"7";
---				when others =>
---					mux_regd <= X"B";
---					mux_d_regd <= "10" & led_green & led_red;
---				end case;
---
---			end if;
---		end if;
---	end process;
---	
---	mux_clk <= mux_clk_reg;
---	mux_d <= mux_d_reg;
---	mux <= mux_reg;
---
-
+pll_locked <= pll1_locked and pll2_locked and pll3_locked;
+	
 
 my1mhz : entity work.chameleon_1mhz
 	generic map (
@@ -336,7 +245,7 @@ myReset : entity work.gen_reset
 	port map (
 		clk => clk_100,
 		enable => '1',
-		button => not freeze_n,
+		button => not (freeze_n and pll_locked),
 		nreset => n_reset
 	);
 	
@@ -447,16 +356,16 @@ myReset : entity work.gen_reset
 
 vga_window<='1';
 
-vga_r(1 downto 0)<="10";
-vga_g(1 downto 0)<="10";
-vga_b(1 downto 0)<="10";
+vga_r(1 downto 0)<=vga_r(7 downto 6);
+vga_g(1 downto 0)<=vga_g(7 downto 6);
+vga_b(1 downto 0)<=vga_b(7 downto 6);
 
 sys_inst: entity work.Next186SOCWrapper
 	generic map (
 		RowBits => 13,
 		ColBits => 9,
 		enableDSP => 0, -- The BlockRAM's better spent on debugging for now.
-		cpuclkfreq => 625
+		cpuclkfreq => 666
 	)
 	port map (
 		CLK_50MHZ => clk_50,
