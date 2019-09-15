@@ -31,9 +31,17 @@ derive_pll_clocks -create_base_clocks
 
 # create_generated_clock -name spi_clk -source [get_nets {inst|altpll_component|auto_generated|wire_pll1_clk[0]}] -divide_by 2 [get_nets {inst3|sck}]
 
+#set slowclk mypll|altpll_component|auto_generated|pll1|clk[0]
+#set memclk mypll|altpll_component|auto_generated|pll1|clk[1]
 create_generated_clock -name sdram_clk_pin -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[2]}] [get_ports {sdram_clk}]
-# create_generated_clock -name sysclk_slow -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[2]}]
-create_generated_clock -name sysclk_fast -source [get_pins {mypll|altpll_component|auto_generated|pll1|clk[0]}]
+
+#set cpuclk mypll2|altpll_component|auto_generated|pll1|clk[0]
+#create_generated_clock -name dspclk -source [get_pins {mypll2|altpll_component|auto_generated|pll1|clk[1]}]
+create_generated_clock -name sysclk -source [get_pins {mypll2|altpll_component|auto_generated|pll1|clk[2]}]
+
+#create_generated_clock -name aud1clk -source [get_pins {mypll3|altpll_component|auto_generated|pll1|clk[0]}]
+#create_generated_clock -name aud2clk -source [get_pins {mypll3|altpll_component|auto_generated|pll1|clk[1]}]
+#create_generated_clock -name aud3clk -source [get_pins {mypll2|altpll_component|auto_generated|pll1|clk[3]}]
 
 
 #**************************************************************
@@ -49,10 +57,10 @@ derive_clock_uncertainty;
 set_input_delay -clock sdram_clk_pin -max [expr 5.8] [get_ports *sd_data*]
 set_input_delay -clock sdram_clk_pin -min [expr 3.2] [get_ports *sd_data*]
 
-set_input_delay -clock sysclk_fast -max 1.0 [get_ports mux_q*]
-set_input_delay -clock sysclk_fast -min 0.5 [get_ports mux_q*]
-set_input_delay -clock sysclk_fast -min 0.5 [get_ports spi_miso]
-set_input_delay -clock sysclk_fast -max 1.0 [get_ports spi_miso]
+set_input_delay -clock sysclk -max 1.0 [get_ports mux_q*]
+set_input_delay -clock sysclk -min 0.5 [get_ports mux_q*]
+set_input_delay -clock sysclk -min 0.5 [get_ports spi_miso]
+set_input_delay -clock sysclk -max 1.0 [get_ports spi_miso]
 
 
 #**************************************************************
@@ -62,8 +70,8 @@ set_input_delay -clock sysclk_fast -max 1.0 [get_ports spi_miso]
 set_output_delay -clock sdram_clk_pin -max [expr 1.5 ] [get_ports *sd_*]
 set_output_delay -clock sdram_clk_pin -min [expr -0.8 ] [get_ports *sd_*]
 
-set_output_delay -clock sysclk_fast -max 1.0 [get_ports mux*]
-set_output_delay -clock sysclk_fast -min 0.5 [get_ports mux*]
+set_output_delay -clock sysclk -max 1.0 [get_ports mux*]
+set_output_delay -clock sysclk -min 0.5 [get_ports mux*]
 
 # Multicycles
 
@@ -90,3 +98,51 @@ set_false_path -to {nHSync} -from {*}
 set_false_path -to {nVSync} -from {*}
 set_false_path -to {sdram_clk} -from {*}
 set_false_path -to {sigma*} -from {*}
+
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[0] -to mypll|altpll_component|auto_generated|pll1|clk[1]
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[0] -to mypll2|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[0] -to dspclk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[0] -to sysclk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[0] -to aud1clk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[0] -to aud2clk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[0] -to mypll2|altpll_component|auto_generated|pll1|clk[3]
+
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[1] -to mypll|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[1] -to mypll2|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[1] -to dspclk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[1] -to sysclk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[1] -to aud1clk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[1] -to aud2clk
+set_false_path -from mypll|altpll_component|auto_generated|pll1|clk[1] -to mypll2|altpll_component|auto_generated|pll1|clk[3]
+
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[0] -to mypll|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[0] -to mypll|altpll_component|auto_generated|pll1|clk[1]
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[0] -to dspclk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[0] -to sysclk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[0] -to aud1clk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[0] -to aud2clk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[0] -to mypll2|altpll_component|auto_generated|pll1|clk[3]
+
+set_false_path -from aud1clk -to mypll|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from aud1clk -to mypll|altpll_component|auto_generated|pll1|clk[1]
+set_false_path -from aud1clk -to mypll2|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from aud1clk -to dspclk
+set_false_path -from aud1clk -to sysclk
+set_false_path -from aud1clk -to aud2clk
+set_false_path -from aud1clk -to mypll2|altpll_component|auto_generated|pll1|clk[3]
+
+set_false_path -from aud2clk -to mypll|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from aud2clk -to mypll|altpll_component|auto_generated|pll1|clk[1]
+set_false_path -from aud2clk -to mypll2|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from aud2clk -to dspclk
+set_false_path -from aud2clk -to sysclk
+set_false_path -from aud2clk -to aud1clk
+set_false_path -from aud2clk -to mypll2|altpll_component|auto_generated|pll1|clk[3]
+
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[3] -to mypll|altpll_component|auto_generated|pll1|clk[0]
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[3] -to memclk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[3] -to cpuclk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[3] -to dspclk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[3] -to sysclk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[3] -to aud1clk
+set_false_path -from mypll2|altpll_component|auto_generated|pll1|clk[3] -to aud2clk

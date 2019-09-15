@@ -82,8 +82,11 @@ module opl3(
     reg tmr_addr = 1'b0;
     assign dout = {(addr == 2'b00 ? status : 3'b000),  5'b00000};
     wire [7:0]InPort = CPU_ADDR[0] ? qdata[7:0] : {4'b0000, qdata[9:8], qempty, ready};
-  
-    
+    reg [2:0] z80_reset;
+	 
+	 always @(posedge clk)
+	 	z80_reset<={z80_reset[1:0],reset};
+		
    opl3_mem ram_inst (
      .clock(clk), // input clka
      .wren_a(CPU_MREQ & CPU_WR & CE), // input [0 : 0] wea
@@ -129,7 +132,7 @@ module opl3(
       .HALT(), 
       .M1(), 
       .CLK(clk), 
-      .RESET(reset), 
+      .RESET(z80_reset[2]), 
       .INT(1'b0), 
       .NMI(1'b0), 
       .WAIT(!CE)

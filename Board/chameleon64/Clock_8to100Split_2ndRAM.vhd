@@ -179,7 +179,7 @@ BEGIN
 		clk3_divide_by => 4,
 		clk3_duty_cycle => 50,
 		clk3_multiply_by => 25,
-		clk3_phase_shift => "0",
+		clk3_phase_shift => "6667",
 		compensate_clock => "CLK0",
 		inclk0_input_frequency => 125000,
 		intended_device_family => "Cyclone III",
@@ -323,12 +323,12 @@ END SYN;
 -- Retrieval info: PRIVATE: PHASE_SHIFT0 STRING "0.00000000"
 -- Retrieval info: PRIVATE: PHASE_SHIFT1 STRING "-1.50000000"
 -- Retrieval info: PRIVATE: PHASE_SHIFT2 STRING "0.00000000"
--- Retrieval info: PRIVATE: PHASE_SHIFT3 STRING "0.00000000"
+-- Retrieval info: PRIVATE: PHASE_SHIFT3 STRING "120.00000000"
 -- Retrieval info: PRIVATE: PHASE_SHIFT_STEP_ENABLED_CHECK STRING "0"
 -- Retrieval info: PRIVATE: PHASE_SHIFT_UNIT0 STRING "deg"
 -- Retrieval info: PRIVATE: PHASE_SHIFT_UNIT1 STRING "ns"
 -- Retrieval info: PRIVATE: PHASE_SHIFT_UNIT2 STRING "ns"
--- Retrieval info: PRIVATE: PHASE_SHIFT_UNIT3 STRING "ps"
+-- Retrieval info: PRIVATE: PHASE_SHIFT_UNIT3 STRING "deg"
 -- Retrieval info: PRIVATE: PLL_ADVANCED_PARAM_CHECK STRING "0"
 -- Retrieval info: PRIVATE: PLL_ARESET_CHECK STRING "1"
 -- Retrieval info: PRIVATE: PLL_AUTOPLL_CHECK NUMERIC "1"
@@ -384,7 +384,7 @@ END SYN;
 -- Retrieval info: CONSTANT: CLK3_DIVIDE_BY NUMERIC "4"
 -- Retrieval info: CONSTANT: CLK3_DUTY_CYCLE NUMERIC "50"
 -- Retrieval info: CONSTANT: CLK3_MULTIPLY_BY NUMERIC "25"
--- Retrieval info: CONSTANT: CLK3_PHASE_SHIFT STRING "0"
+-- Retrieval info: CONSTANT: CLK3_PHASE_SHIFT STRING "6667"
 -- Retrieval info: CONSTANT: COMPENSATE_CLOCK STRING "CLK0"
 -- Retrieval info: CONSTANT: INCLK0_INPUT_FREQUENCY NUMERIC "125000"
 -- Retrieval info: CONSTANT: INTENDED_DEVICE_FAMILY STRING "Cyclone III"

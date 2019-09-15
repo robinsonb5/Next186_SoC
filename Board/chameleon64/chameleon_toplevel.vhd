@@ -93,7 +93,7 @@ architecture rtl of chameleon_toplevel is
 	signal pll_locked : std_logic;
 	
 -- Global signals
-	signal n_reset : std_logic;
+	signal reset : std_logic;
 	
 -- MUX
 	signal mux_clk_reg : std_logic := '0';
@@ -123,6 +123,8 @@ architecture rtl of chameleon_toplevel is
 	signal vga_r: unsigned(7 downto 0);
 	signal vga_g: unsigned(7 downto 0);
 	signal vga_b: unsigned(7 downto 0);
+	signal vga_hsync : std_logic;
+	signal vga_vsync : std_logic;
 	signal vga_window : std_logic;
 
 -- SD card
@@ -184,6 +186,9 @@ architecture rtl of chameleon_toplevel is
 	
 begin
 	
+nVSync<=vga_vsync;
+nHSync<=vga_hsync;	
+
 --	sd_addr(12)<='0'; -- FIXME - genericise the SDRAM size
 	
 -- -----------------------------------------------------------------------
@@ -243,10 +248,10 @@ myReset : entity work.gen_reset
 		resetCycles => 131071
 	)
 	port map (
-		clk => clk_100,
+		clk => clk8,	-- Shouldn't run this from a PLL generated clock since it needs to run while the PLLs aren't yet stable.
 		enable => '1',
-		button => not (freeze_n and pll_locked),
-		nreset => n_reset
+		button => not (button_reset_n and pll_locked),
+		reset => reset
 	);
 	
 	myIO : entity work.chameleon_io
@@ -262,7 +267,7 @@ myReset : entity work.gen_reset
 			clk => clk_100,
 			clk_mux => clk_100,
 			ena_1mhz => ena_1mhz,
-			reset => not n_reset,
+			reset => reset,
 			
 			no_clock => no_clock,
 			docking_station => docking_station,
@@ -342,8 +347,8 @@ myReset : entity work.gen_reset
 		)
 		port map(
 			clk=>clk_100,
-			hsync=>nHSync,
-			vsync=>nVSync,
+			hsync=>vga_hsync,
+			vsync=>vga_vsync,
 			vid_ena=>vga_window,
 			iRed => vga_r,
 			iGreen => vga_g,
@@ -369,6 +374,7 @@ sys_inst: entity work.Next186SOCWrapper
 	)
 	port map (
 		CLK_50MHZ => clk_50,
+		opl_reset => reset or not freeze_n,
 		clk_25=>clk_25,
 		clk_sdr => memclk,
 		clk_cpu => clk_cpu,
@@ -378,8 +384,8 @@ sys_inst: entity work.Next186SOCWrapper
 		unsigned(VGA_R) => vga_r(7 downto 2),
 		unsigned(VGA_G) => vga_g(7 downto 2),
 		unsigned(VGA_B) => vga_b(7 downto 2),
-		VGA_HSYNC => nHSync,
-		VGA_VSYNC => nVSync,
+		VGA_HSYNC => vga_hsync,
+		VGA_VSYNC => vga_vsync,
 		sdr_n_CS_WE_RAS_CAS(3)=>open,
 		sdr_n_CS_WE_RAS_CAS(2)=>sd_we_n,
 		sdr_n_CS_WE_RAS_CAS(1)=>sd_ras_n,
@@ -391,7 +397,7 @@ sys_inst: entity work.Next186SOCWrapper
 		sdr_DQM(1) => sd_udqm,
 		sdr_DQM(0) => sd_ldqm,
 		LED => socleds,
-		BTN_RESET=>not n_reset,
+		BTN_RESET=>reset, -- reset,
 		BTN_NMI=>'0',
 		RS232_DCE_RXD=>rs232_rxd,
 		RS232_DCE_TXD=>rs232_txd,

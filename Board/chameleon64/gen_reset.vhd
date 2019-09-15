@@ -66,6 +66,7 @@ architecture rtl of gen_reset is
 	signal cnt : integer range 0 to resetCycles := 0;
 	signal initial_nreset_reg : std_logic := '0';
 	signal nresetLoc : std_logic := '0';
+	signal button_s : std_logic_vector(1 downto 0) := "00";
 begin
 	initial_reset <= not initial_nreset_reg;
 	reset <= not nresetLoc;
@@ -74,6 +75,9 @@ begin
 	process(clk)
 	begin
 		if rising_edge(clk) then
+		
+			button_s<=button_s(0) & button;	-- Synchronise the async button signal.
+		
 			nresetLoc <= '1';
 			if cnt < resetCycles then
 				nresetLoc <= '0';
@@ -83,7 +87,7 @@ begin
 			else
 				initial_nreset_reg <= '1';
 			end if;
-			if button = '1' then
+			if button_s(1) = '1' then
 				cnt <= 0;
 			end if;
 		end if;
