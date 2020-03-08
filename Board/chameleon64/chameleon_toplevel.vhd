@@ -324,14 +324,14 @@ myReset : entity work.gen_reset
 		-- Keyboards
 			keys => c64_keys,
 			restore_key_n => c64_restore_key_n,
-			c64_nmi_n => c64_nmi_n,
+			c64_nmi_n => c64_nmi_n
 
 --
+--			iec_atn_out => rs232_txd,
+--			iec_clk_in => rs232_rxd
 --			iec_clk_out : in std_logic := '1';
 --			iec_dat_out : in std_logic := '1';
-			iec_atn_out => rs232_txd,
 --			iec_srq_out : in std_logic := '1';
-			iec_clk_in => rs232_rxd
 --			iec_dat_in : out std_logic;
 --			iec_atn_in : out std_logic;
 --			iec_srq_in : out std_logic
@@ -373,8 +373,8 @@ sys_inst: entity work.Next186SOCWrapper
 		cpuclkfreq => 666
 	)
 	port map (
-		CLK_50MHZ => clk_50,
-		opl_reset => reset or not freeze_n,
+		CLK_50MHZ => clk_cpu,
+		opl_reset => (not pll2_locked) or (not freeze_n),
 		clk_25=>clk_25,
 		clk_sdr => memclk,
 		clk_cpu => clk_cpu,

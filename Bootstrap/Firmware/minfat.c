@@ -38,16 +38,17 @@ JB:
 2012-07-24  - Major changes to fit the MiniSOC project - AMR
 */
 
-// #include <stdio.h>
+#define NULL 0
+#include <sys/types.h>
+#include <stdio.h>
 #include <string.h>
 //#include <ctype.h>
 
 #include "spi.h"
 
 #include "minfat.h"
-#include "swap.h"
+#include "swap_le.h"
 #include "uart.h"
-#include "small_printf.h"
 
 #define tolower(x) (x|32)
 
@@ -56,16 +57,16 @@ unsigned int entries_per_cluster;     // number of directory entries per cluster
 
 // internal global variables
 unsigned int fat32;                // volume format is FAT32
-unsigned long fat_start;                // start LBA of first FAT table
-unsigned long data_start;               // start LBA of data field
-unsigned long root_directory_cluster;   // root directory cluster (used in FAT32)
-unsigned long root_directory_start;     // start LBA of directory table
-unsigned long root_directory_size;      // size of directory region in sectors
+uint32_t fat_start;                // start LBA of first FAT table
+uint32_t data_start;               // start LBA of data field
+uint32_t root_directory_cluster;   // root directory cluster (used in FAT32)
+uint32_t root_directory_start;     // start LBA of directory table
+uint32_t root_directory_size;      // size of directory region in sectors
 unsigned int fat_number;               // number of FAT tables
 unsigned int cluster_size;             // size of a cluster in sectors
-unsigned long cluster_mask;             // binary mask of cluster number
+uint32_t cluster_mask;             // binary mask of cluster number
 unsigned int dir_entries;             // number of entry's in directory table
-unsigned long fat_size;                 // size of fat
+uint32_t fat_size;                 // size of fat
 
 unsigned char sector_buffer[512];       // sector buffer
 
@@ -75,11 +76,14 @@ unsigned char sector_buffer[512];       // sector buffer
 int partitioncount;
 
 #define fat_buffer (*(FATBUFFER*)&sector_buffer) // Don't need a separate buffer for this.
-// unsigned long buffered_fat_index;       // index of buffered FAT sector
+// uint32_t buffered_fat_index;       // index of buffered FAT sector
 
 
 #define BootPrint(x) puts(x);
 
+
+static char FAT16_ID[]="FAT16   ";
+static char FAT32_ID[]="FAT32   ";
 
 
 int compare(const char *s1, const char *s2,int b)
@@ -97,66 +101,84 @@ int compare(const char *s1, const char *s2,int b)
 // FindDrive() checks if a card is present and contains FAT formatted primary partition
 unsigned int FindDrive(void)
 {
-	unsigned long boot_sector;              // partition boot sector
+	uint32_t boot_sector;              // partition boot sector
 //    buffered_fat_index = -1;
 	fat32=0;
 
-	puts("Reading MBR\n");
+	puts("MBR ");
 
     if (!sd_read_sector(0, sector_buffer)) // read MBR
 	{
-		puts("Read of MBR failed\n");
+		puts("fail\n");
         return(0);
 	}
 //	hexdump(sector_buffer,512);
 
-	puts("MBR successfully read\n");
+//	puts("MBR successfully read\n");
 
 	boot_sector=0;
 	partitioncount=1;
 
 	// If we can identify a filesystem on block 0 we don't look for partitions
-    if (compare((const char*)&sector_buffer[0x36], "FAT16   ",8)==0) // check for FAT16
+    if (compare((const char*)&sector_buffer[0x36], FAT16_ID,8)==0) // check for FAT16
 		partitioncount=0;
-    if (compare((const char*)&sector_buffer[0x52], "FAT32   ",8)==0) // check for FAT32
+    if (compare((const char*)&sector_buffer[0x52], FAT32_ID,8)==0) // check for FAT32
 		partitioncount=0;
+//    if (compare((const char*)&sector_buffer[0x36], "FAT16   ",8)==0) // check for FAT16
+//		partitioncount=0;
+//    if (compare((const char*)&sector_buffer[0x52], "FAT32   ",8)==0) // check for FAT32
+//		partitioncount=0;
 
+#ifdef DEBUG
 	printf("Partitioncount %d\n",partitioncount);
+#endif
 
 	if(partitioncount)
 	{
 		// We have at least one partition, parse the MBR.
 		struct MasterBootRecord *mbr=(struct MasterBootRecord *)sector_buffer;
+		struct PartitionEntry *pe=(struct PartitionEntry *)&mbr->Partition[0][0];
 
-		boot_sector = mbr->Partition[0].startlba;
+#ifdef DEBUG
+		printf("MBRsize: %d, partitionsize: %d, offset of sig: %d, sig 0x%x\n",
+			sizeof(*mbr), sizeof(mbr->Partition[0]),((char *)&mbr->Signature)-((char*)mbr),mbr->Signature);
+#endif
+		boot_sector = pe->startlba;
 		if(mbr->Signature==0x55aa)
-				boot_sector=SwapBBBB(mbr->Partition[0].startlba);
+				boot_sector=SwapBBBB(pe->startlba);
 		else if(mbr->Signature!=0xaa55)
 		{
-			puts("No partition signature found\n");
+			puts("Part sig\n");
 			return(0);
 		}
+#ifdef DEBUG
 		printf("Reading boot sector %d\n",boot_sector);
+#endif
 		if (!sd_read_sector(boot_sector, sector_buffer)) // read discriptor
 		    return(0);
 //		hexdump(sector_buffer,512);
-		puts("Read boot sector from first partition\n");
+		puts("Bootsect\n");
 	}
 
-	printf("Hunting for filesystem\n");
+#ifdef DEBUG
+	puts("Hunting for filesystem\n");
+#endif
 
-    if (compare(sector_buffer+0x52, "FAT32   ",8)==0) // check for FAT16
+    if (compare(sector_buffer+0x52, FAT32_ID,8)==0) // check for FAT16
 		fat32=1;
-	else if (compare(sector_buffer+0x36, "FAT16   ",8)!=0) // check for FAT32
+	else if (compare(sector_buffer+0x36, FAT16_ID,8)!=0) // check for FAT32
+//    if (compare(sector_buffer+0x52, "FAT32   ",8)==0) // check for FAT16
+//		fat32=1;
+//	else if (compare(sector_buffer+0x36, "FAT16   ",8)!=0) // check for FAT32
 	{
-        printf("Unsupported partition type!\r");
+        puts("badpart\n");
 		return(0);
 	}
 
     if (sector_buffer[510] != 0x55 || sector_buffer[511] != 0xaa)  // check signature
         return(0);
 
-    // check for near-jump or short-jump opcode
+    // check for near-jump or int16_t-jump opcode
     if (sector_buffer[0] != 0xe9 && sector_buffer[0] != 0xeb)
         return(0);
 
@@ -170,14 +192,16 @@ unsigned int FindDrive(void)
     // calculate cluster mask
     cluster_mask = cluster_size - 1;
 
+#ifdef DEBUG
 	printf("Cluster size: %d, Cluster mask, %d\n",cluster_size,cluster_mask);
+#endif
 
     fat_start = boot_sector + sector_buffer[0x0E] + (sector_buffer[0x0F] << 8); // reserved sector count before FAT table (usually 32 for FAT32)
 	fat_number = sector_buffer[0x10];
 
     if (fat32)
     {
-        if (compare((const char*)&sector_buffer[0x52], "FAT32   ",8) != 0) // check file system type
+        if (compare((const char*)&sector_buffer[0x52], FAT32_ID,8) != 0) // check file system type
             return(0);
 
         dir_entries = cluster_size << 4; // total number of dir entries (16 entries per sector)
@@ -235,19 +259,19 @@ int GetCluster(int cluster)
         // remember current buffer index
 //        buffered_fat_index = sb;
  //   }
-    i = fat32 ? SwapBBBB(fat_buffer.fat32[i]) & 0x0FFFFFFF : SwapBB(fat_buffer.fat16[i]); // get FAT link for 68000 
-    return(i);
+    i = fat32 ? ConvBBBB_LE(fat_buffer.fat32[i]) & 0x0FFFFFFF : ConvBB_LE(fat_buffer.fat16[i]); // get FAT link for 68000 
+	return(i);
 }
 
 
 unsigned int FileOpen(fileTYPE *file, const char *name)
 {
-    unsigned long  iDirectory = 0;       // only root directory is supported
+    uint32_t  iDirectory = 0;       // only root directory is supported
     DIRENTRY      *pEntry = NULL;        // pointer to current entry in sector buffer
-    unsigned long  iDirectorySector;     // current sector of directory entries table
-    unsigned long  iDirectoryCluster;    // start cluster of subdirectory or FAT32 root directory
-    unsigned long  iEntry;               // entry index in directory cluster or FAT16 root directory
-    unsigned long  nEntries;             // number of entries per cluster or FAT16 root directory size
+    uint32_t  iDirectorySector;     // current sector of directory entries table
+    uint32_t  iDirectoryCluster;    // start cluster of subdirectory or FAT32 root directory
+    uint32_t  iEntry;               // entry index in directory cluster or FAT16 root directory
+    uint32_t  nEntries;             // number of entries per cluster or FAT16 root directory size
 
 //	buffered_fat_index=-1;
 
@@ -274,13 +298,13 @@ unsigned int FileOpen(fileTYPE *file, const char *name)
             {
                 if (!(pEntry->Attributes & (ATTR_VOLUME | ATTR_DIRECTORY))) // not a volume nor directory
                 {
-//					puts(pEntry->Name);
+					puts(pEntry->Name);
                     if (compare((const char*)pEntry->Name, name,11) == 0)
                     {
-                        file->size = SwapBBBB(pEntry->FileSize); 		// for 68000
-                        file->cluster = SwapBB(pEntry->StartCluster);
-						file->cluster += (fat32 ? (SwapBB(pEntry->HighCluster) & 0x0FFF) << 16 : 0);
-			file->initcluster=file->cluster;
+                        file->size = ConvBBBB_LE(pEntry->FileSize); 		// for 68000
+                        file->cluster = ConvBB_LE(pEntry->StartCluster);
+						file->cluster += (fat32 ? (ConvBB_LE(pEntry->HighCluster) & 0x0FFF) << 16 : 0);
+						file->initcluster=file->cluster;
                         file->sector = 0;
 
                         return(1);
@@ -309,8 +333,8 @@ unsigned int FileOpen(fileTYPE *file, const char *name)
 
 unsigned int FileNextSector(fileTYPE *file)
 {
-    unsigned long sb;
-    unsigned short i;
+    uint32_t sb;
+    uint16_t i;
 
     // increment sector index
     file->sector++;
@@ -324,7 +348,7 @@ unsigned int FileNextSector(fileTYPE *file)
 
 unsigned int FileRead(fileTYPE *file, unsigned char *pBuffer)
 {
-    unsigned long sb;
+    uint32_t sb;
 
     sb = data_start;                         // start of data in partition
     sb += cluster_size * (file->cluster-2);  // cluster offset
@@ -336,7 +360,7 @@ unsigned int FileRead(fileTYPE *file, unsigned char *pBuffer)
         return(1);
 }
 
-int _cvt(int val, char *buf, int radix);
+fileTYPE file;
 
 unsigned int FileWrite(fileTYPE *file, unsigned char *pBuffer)
 {
@@ -350,8 +374,6 @@ unsigned int FileWrite(fileTYPE *file, unsigned char *pBuffer)
     else
         return(1);
 }
-
-fileTYPE file;
 
 unsigned int FileSeek(fileTYPE *f,int block)
 {
@@ -374,10 +396,10 @@ int LoadFile(const char *fn, unsigned char *buf)
 {
 	if(FileOpen(&file,fn))
 	{
-		puts("Opened file, loading...\n");
 		int imgsize=(file.size+511)/512;
 		int c=0;
 		int sector=0;
+		puts("Load...\n");
 
 		while(c<imgsize)
 		{
@@ -391,7 +413,11 @@ int LoadFile(const char *fn, unsigned char *buf)
 	}
 	else
 	{
+#ifdef DEBUG
 		printf("Can't open %s\n",fn);
+#else
+		puts("lfail\n");
+#endif
 		return(0);
 	}
 	return(1);

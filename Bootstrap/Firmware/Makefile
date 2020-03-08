@@ -1,97 +1,61 @@
-BASE	= zpu-elf
-CC      = $(BASE)-gcc
-LD      = $(BASE)-gcc
-AS      = $(BASE)-as
-CP      = $(BASE)-objcopy
-DUMP    = $(BASE)-objdump
+832DIR=../../EightThirtyTwo/Lib/
+INCDIR=../../EightThirtyTwo/include/
+ROMGENDIR = ../../EightThirtyTwo/romgen
+ROMGEN = $(ROMGENDIR)/romgen
+CC=../../EightThirtyTwo/vbcc/bin/vbcc832
+AS=../../EightThirtyTwo/832a/832a
+LD=../../EightThirtyTwo/832a/832l
+DUMP=objdump
+CFLAGS = -+ -size
+COPT = -O=1311
+all: Bootstrap_ROM.vhd
 
-ZPUFLEXDIR = ../../ZPUFlex
-ROMGEN = $(ZPUFLEXDIR)/Firmware/zpuromgen
+clean :
+	-rm *.asm
+	-rm *.S
+	-rm *.o
+	-rm *.vhd
+	-rm *.bin
+	-rm *.elf
 
-# we use mincrt0.s from here
-STARTUP_DIR = $(ZPUFLEXDIR)/Firmware/startup
+%_ROM.vhd: %.bin $(ROMGEN)
+	sed 's/dualportram/$*_rom/' >$*_ROM.vhd <$(ROMGENDIR)/rom_prologue.vhd
+	$(ROMGEN) -b $*.bin >>$*_ROM.vhd
+	cat >>$*_ROM.vhd $(ROMGENDIR)/rom_epilogue.vhd
 
-# we fetch ROM prologue / epilogue from here
-RTL_DIR = $(ZPUFLEXDIR)/RTL/
+%.bin : %.elf Makefile
+	objcopy -Obinary $< $@
 
-# we use printf from here
-COMMON_DIR = ../../Common_Firmware
+%.o : %.s Makefile
+	gcc -c $*.s
 
-BUILD_DIR=zpu_obj
+Bootstrap.bin : start.o uart.o small_printf.o spi_c.o minfat.o swap.o boot.o division.o
+	$(LD) -m map -o $@ $+
 
-MINSTARTUP_SRC = $(STARTUP_DIR)/mincrt0.s $(STARTUP_DIR)/premain.s
-MINSTARTUP_OBJ = $(patsubst $(STARTUP_DIR)/%.s,$(BUILD_DIR)/%.o,$(MINSTARTUP_SRC))
+%.o : %.S Makefile
+	$(AS) -o $*.o $*.S
 
-COMMON_SRC = $(COMMON_DIR)/small_printf.c $(COMMON_DIR)/uart.c $(COMMON_DIR)/spi.c $(COMMON_DIR)/swap.c
-COMMON_OBJ = $(patsubst $(COMMON_DIR)/%.c,$(BUILD_DIR)/%.o,$(COMMON_SRC))
+%.o : %.c Makefile 
+	$(CC) $(COPT) $(CFLAGS) -I$(INCDIR) -I$(LIBDIR) $*.c
+	$(AS) -o $*.o $*.asm
 
-MAIN_PRJ = Bootstrap
-MAIN_SRC = boot.c minfat.c minfat.h
-MAIN_OBJ = $(COMMON_OBJ) $(patsubst %.c,$(BUILD_DIR)/%.o,$(MAIN_SRC))
+%.o : $(832DIR)/%.S Makefile 
+	$(AS) -o $*.o $(832DIR)/$*.S
 
-LINKMAP  = $(ZPUFLEXDIR)/Firmware/standalone_simple.ld
+%.o : $(832DIR)/%.asm Makefile 
+	$(AS) -o $*.o $(832DIR)/$*.asm
 
+%.o : $(LIBDIR)/%.S Makefile 
+	$(AS) -o $*.o $(LIBDIR)/$*.S
 
-# Commandline options for each tool.
+%.o : $(LIBDIR)/%.asm Makefile 
+	$(AS) -o $*.o $(LIBDIR)/$*.asm
 
-ZPUOPTS= -mno-poppcrel -mno-pushspadd -mno-callpcrel -mno-byteop -mno-shortop -mno-neg -mno-div -mno-mod # No-neg requires bugfixed toolchain
-CFLAGS  = -I. -I$(COMMON_DIR)/ -c -Os $(ZPUOPTS) -DPRINTF_HEX_ONLY -DDISABLE_PRINTF -DDISABLE_UART_RX # -DDISABLE_UART_TX
+%.asm : %.c Makefile
+	$(CC) $(COPT) $(CFLAGS) -I$(INCDIR) -I$(LIBDIR) $*.c
 
-LFLAGS  = -nostartfiles -nostdlib -Wl,--relax -Os -Wl,-Map,$(MAIN_PRJ).map
+$(ROMGEN): $(ROMGENDIR)/romgen.c
+	gcc -o $(ROMGENDIR)/romgen $(ROMGENDIR)/romgen.c
 
-
-# Our target.
-all: $(BUILD_DIR) $(MAIN_PRJ).bin $(MAIN_PRJ)_ROM1.vhd $(MAIN_PRJ).rpt
-
-clean:
-	rm -f $(BUILD_DIR)/*.o *.hex *.elf *.map *.lst *.srec $(MAIN_PRJ).rom *~ */*.o *.bin
-
-
-# Convert ELF binary to bin file.
-%.bin: %.elf
-	$(CP) -O binary $< $@
-
-%.rpt: %.elf
-	echo >$@ -n "End of code:\t"
-	$(DUMP) -x $< | grep >>$@ _romend
-	echo >>$@ -n "Start of BSS:\t"
-	$(DUMP) -x $< | grep  >>$@ __bss_start__
-	echo >>$@ -n "End of BSS:\t"
-	$(DUMP) -x $< | grep >>$@ __bss_end__
-	cat $@
-
-$(ROMGEN): $(ZPUFLEXDIR)/Firmware/zpuromgen.c
-	gcc -o $(ZPUFLEXDIR)/Firmware/zpuromgen $(ZPUFLEXDIR)/Firmware/zpuromgen.c
-
-%_ROM1.vhd: %.bin $(ROMGEN)
-#	sed 's/dualportram/$*_ROM/' >$*_ROM.vhd <$(RTL_DIR)/rom_prologue.vhd
-#	$(ROMGEN) $*.bin >>$*_ROM.vhd
-#	cat >>$*_ROM.vhd $(RTL_DIR)/rom_epilogue.vhd
-#	Experimental: split the ROM into two parts to reduce block RAM usage.
-	sed 's/dualportram/$*_ROM1/' >$*_ROM1.vhd <$(RTL_DIR)/rom_prologue.vhd
-	$(ROMGEN) -l4096 $*.bin >>$*_ROM1.vhd
-	cat >>$*_ROM1.vhd $(RTL_DIR)/rom_epilogue.vhd
-	sed 's/dualportram/$*_ROM2/' >$*_ROM2.vhd <$(RTL_DIR)/rom_prologue.vhd
-	$(ROMGEN) -o4096 -l1024 $*.bin >>$*_ROM2.vhd
-	cat >>$*_ROM2.vhd $(RTL_DIR)/rom_epilogue.vhd
-
-# Link - this produces an ELF binary.
-
-$(MAIN_PRJ).elf: $(MINSTARTUP_OBJ) $(MAIN_OBJ)
-	$(LD) $(LFLAGS) -T $(LINKMAP) -o $@ $+ $(LIBS)
-
-$(BUILD_DIR)/%.o: %.c Makefile
-	$(CC) $(CFLAGS)  -o $@ -c $<
-
-$(BUILD_DIR)/%.o: $(COMMON_DIR)/%.c Makefile
-	$(CC) $(CFLAGS)  -o $@ -c $<
-
-$(BUILD_DIR)/%.o: %.s
-	$(AS) -o $@ $<
-
-$(BUILD_DIR)/%.o: $(STARTUP_DIR)/%.s
-	$(AS) -o $@ $<
-
-$(BUILD_DIR):
-	mkdir $(BUILD_DIR)
+force:
 

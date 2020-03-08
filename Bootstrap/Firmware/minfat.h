@@ -3,28 +3,30 @@
 
 #define MAXDIRENTRIES 8
 
+#include "sys/types.h"
 
 typedef struct
 {
-    unsigned long sector;          /* sector index in file */
-    unsigned long size;            /* file size */
-    unsigned long cluster;         /* current cluster */
-    unsigned long initcluster;
+    uint32_t sector;          /* sector index in file */
+    uint32_t size;            /* file size */
+    uint32_t cluster;         /* current cluster */
+	uint32_t initcluster;
 } fileTYPE;
 
 struct PartitionEntry
 {
 	unsigned char geometry[8];		// ignored
-	unsigned long startlba;
-	unsigned long sectors;
-} __attribute__ ((packed));
+	uint32_t startlba;
+	uint32_t sectors;
+};// __attribute__ ((packed));
 
 struct MasterBootRecord
 {
 	unsigned char bootcode[446];	// ignored
-	struct PartitionEntry Partition[4];	// We copy these (and byteswap if need be)
-	unsigned short Signature;		// This lets us detect an MBR (and the need for byteswapping).
-} __attribute__ ((packed));
+	unsigned char Partition[4][16];
+//	struct PartitionEntry Partition[4];	// We copy these (and byteswap if need be)
+	uint16_t Signature;		// This lets us detect an MBR (and the need for byteswapping).
+};// __attribute__ ((packed));
 
 //extern struct PartitionEntry partitions[4];	// FirstBlock and LastBlock will be byteswapped as necessary
 //extern int partitioncount;
@@ -44,24 +46,24 @@ typedef struct
 #define ATTR_VOLUME     0x08                /* entry is a volume label */
 #define ATTR_DIRECTORY  0x10                /* entry is a directory name */
 #define ATTR_ARCHIVE    0x20                /* file is new or modified */
-#define ATTR_LFN        0x0F                /* long file name entry */
+#define ATTR_LFN        0x0F                /* int32_t file name entry */
     unsigned char       LowerCase;          /* NT VFAT lower case flags */
 #define LCASE_BASE      0x08                /* filename base in lower case */
 #define LCASE_EXT       0x10                /* filename extension in lower case */
     unsigned char       CreateHundredth;    /* hundredth of seconds in CTime */
-    unsigned short      CreateTime;         /* create time */
-    unsigned short      CreateDate;         /* create date */
-    unsigned short      AccessDate;         /* access date */
-    unsigned short      HighCluster;        /* high bytes of cluster number */
-    unsigned short      ModifyTime;         /* last update time */
-    unsigned short      ModifyDate;         /* last update date */
-    unsigned short      StartCluster;       /* starting cluster of file */
-    unsigned long       FileSize;           /* size of file in bytes */
+    uint16_t      CreateTime;         /* create time */
+    uint16_t      CreateDate;         /* create date */
+    uint16_t      AccessDate;         /* access date */
+    uint16_t      HighCluster;        /* high bytes of cluster number */
+    uint16_t      ModifyTime;         /* last update time */
+    uint16_t      ModifyDate;         /* last update date */
+    uint16_t      StartCluster;       /* starting cluster of file */
+    uint32_t       FileSize;           /* size of file in bytes */
 } DIRENTRY;
 
 typedef union {
-    unsigned short fat16[256];
-    unsigned long  fat32[128];
+    uint16_t fat16[256];
+    uint32_t  fat32[128];
 } FATBUFFER;
 
 #define FILETIME(h,m,s) (((h<<11)&0xF800)|((m<<5)&0x7E0)|((s/2)&0x1F))
@@ -72,7 +74,7 @@ typedef union {
 extern unsigned char sector_buffer[512];
 //extern unsigned char *sector_buffer;
 extern unsigned int cluster_size;
-extern unsigned long cluster_mask;
+extern uint32_t cluster_mask;
 extern unsigned int fat32;
 
 // constants
@@ -93,7 +95,7 @@ extern unsigned int fat32;
 
 // options flags
 #define SCAN_DIR   1 // include subdirectories
-#define SCAN_LFN   2 // include long file names
+#define SCAN_LFN   2 // include int32_t file names
 #define FIND_DIR   4 // find first directory beginning with given charater
 #define FIND_FILE  8 // find first file entry beginning with given charater
 
@@ -104,10 +106,8 @@ unsigned int GetFATLink(unsigned int cluster);
 unsigned int FileNextSector(fileTYPE *file);
 unsigned int FileOpen(fileTYPE *file, const char *name);
 unsigned int FileRead(fileTYPE *file, unsigned char *pBuffer);
-unsigned int FileWrite(fileTYPE *file, unsigned char *pBuffer);
-//unsigned char FileReadEx(fileTYPE *file, unsigned char *pBuffer, unsigned long nSize);
+//unsigned char FileReadEx(fileTYPE *file, unsigned char *pBuffer, uint32_t nSize);
 
-unsigned int FileSeek(fileTYPE *file,int block);
 int LoadFile(const char *fn, unsigned char *buf);
 
 #endif

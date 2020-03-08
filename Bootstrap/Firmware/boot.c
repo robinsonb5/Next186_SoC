@@ -7,12 +7,12 @@
 */
 
 
+#include <stdio.h>
 #include "stdarg.h"
 
 #include "uart.h"
 #include "spi.h"
 #include "minfat.h"
-#include "small_printf.h"
 
 #define DATACHANNEL 0xFFFFFFCC
 #define HW_DATACHANNEL(x) (*(volatile unsigned int *)(DATACHANNEL+x))

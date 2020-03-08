@@ -1,5 +1,5 @@
+#include <stdio.h>
 #include "spi.h"
-#include "small_printf.h"
 
 int sd_is_sdhc;
 int sd_size;
@@ -10,7 +10,7 @@ int sd_size;
 
 #define SPI(x) HW_SPI(HW_SPI_DATA)=(x)
 // #define SPI_PUMP(x) HW_SPI(HW_SPI_PUMP)
-#define SPI_READ(x) (HW_SPI(HW_SPI_DATA)&255)
+#define SPI_READ(x) (HW_SPI(HW_SPI_DATA))
 
 #define SPI_CS(x) {while((HW_SPI(HW_SPI_CS)&(1<<HW_SPI_BUSY))); HW_SPI(HW_SPI_CS)=(x);}
 
@@ -35,6 +35,20 @@ int sd_size;
 
 unsigned char SPI_R1[6];
 
+
+int SPI_PUMP_LE()
+{
+	int r=0;
+	SPI(0xFF);
+	r=SPI_READ();
+	SPI(0xFF);
+	r|=SPI_READ()<<8;
+	SPI(0xFF);
+	r|=SPI_READ()<<16;
+	SPI(0xFF);
+	r|=SPI_READ()<<24;
+	return(r);
+}
 
 int SPI_PUMP()
 {
@@ -154,7 +168,7 @@ int is_sdhc()
 	spi_spin();
 
 	r=cmd_CMD8();		// test for SDHC capability
-	printf("cmd_CMD8 response: %d\n",r);
+	PDBG("cmd_CMD8 response: %d\n",r);
 	if(r!=1)
 	{
 		PDBG("CMD8_4 response: %d\n",r);
@@ -185,10 +199,10 @@ int is_sdhc()
 		{
 			if((r=cmd_CMD58())==0)
 			{
-				printf("CMD58 %d\n  ",r);
+				PDBG("CMD58 %d\n  ",r);
 				SPI(0xff);
 				r=SPI_READ();
-				printf("CMD58_2 %d\n  ",r);
+				PDBG("CMD58_2 %d\n  ",r);
 				SPI(0xff);
 				SPI(0xff);
 				SPI(0xff);
@@ -205,11 +219,11 @@ int is_sdhc()
 				}
 			}
 			else
-				printf("CMD58 %d\n  ",r);
+				PDBG("CMD58 %d\n  ",r);
 		}
 		if(i==2)
 		{
-			printf("SDHC Initialization error!\n");
+			DBG("SDHC fail\n");
 			return(0);
 		}
 	}
@@ -254,7 +268,7 @@ int spi_init()
 	SPI(0xFF);
 
 	sd_size=sd_get_size();
-	printf("SD card size is %d\n",i);
+	PDBG("SD card size is %d\n",sd_size);
 
 
 	SPI_CS(0);
@@ -276,7 +290,7 @@ int sd_write_sector(unsigned long lba,unsigned char *buf) // FIXME - Stub
 	t=cmd_writesector(lba);
 	if(t!=0)
 	{
-		puts("Write failed\n");
+		DBG("Write failed\n");
 //		printf("Read command failed at %d (%d)\n",lba,r);
 		return(1);
 	}
@@ -337,7 +351,7 @@ static int sd_read(unsigned char *buf,int bytes)
 			{
 				int t,v;
 
-				t=SPI_PUMP();
+				t=SPI_PUMP_LE();
 				*(int *)buf=t;
 //				printf("%d: %d\n",buf,t);
 				buf+=4;
@@ -374,7 +388,8 @@ int sd_read_sector(unsigned long lba,unsigned char *buf)
 	r=cmd_read(lba);
 	if(r!=0)
 	{
-		printf("Read command failed at %d (%d)\n",lba,r);
+		PDBG("Read command failed at %d",lba);
+		PDBG(" (%d)\n",r);
 		return(result);
 	}
 	result=sd_read(buf,512);
@@ -407,18 +422,19 @@ int sd_get_size()
 		int c_size_mult=((sizebuf[9]<<1)&6)|(sizebuf[10]>>7);
 		int read_bl_len=sizebuf[5]&15;
 		int csize=((sizebuf[6]&3)<<10) | sizebuf[7]<<2 | ((sizebuf[8]&0xc0)>>6);
-		printf("c_size_mult: %d, read_bl_len: %d, csize: %d\n",c_size_mult,read_bl_len,csize);
+//		printf("c_size_mult: %d, read_bl_len: %d, csize: %d\n",c_size_mult,read_bl_len,csize);
 		c_size_mult=1<<(2+c_size_mult);
-		printf("Mult %d\n",c_size_mult);
+		PDBG("Mult %d\n",c_size_mult);
 		read_bl_len=1<<(read_bl_len);
 		r=(csize+1)*c_size_mult;
-		printf("%d blocks of size %d\n",r,read_bl_len);
+		PDBG("%d blocks ",r);
+		PDBG(" of size %d\n",read_bl_len);
 		while(read_bl_len>512)
 		{
 			r<<=1;
 			read_bl_len>>=1;
 		}
-		printf("%d blocks of 512 bytes\n",r);
+		PDBG("%d blocks of 512 bytes\n",r);
 	}
 	return(r);
 }

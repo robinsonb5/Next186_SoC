@@ -137,6 +137,7 @@ module Next186_SoC(
 		.clk_dsp(clk_dsp),
 		.CLK44100x256(clk44100x256),
 		.CLK14745600(clk14745600),
+		.opl_reset(!freeze_btn),
 		.VGA_R({red, r0}),
 		.VGA_G({grn, g0}),
 		.VGA_B({blu, b0}),
