@@ -136,11 +136,11 @@ int main(int argc,char **argv)
 							dc_send(0);
 							v=dc_handshake();
 							dc_send(0);
-							v=(v<<8)|dc_handshake();
+							v|=dc_handshake()<<8;
 							dc_send(0);
-							v=(v<<8)|dc_handshake();
+							v|=dc_handshake()<<16;
 							dc_send(0);
-							v=(v<<8)|dc_handshake();
+							v|=dc_handshake()<<24;
 							*ptr++=v;
 						}
 //						puts("w\n");
@@ -188,13 +188,13 @@ int main(int argc,char **argv)
 //							if(cmd==DC_FDREADBLOCK)
 //								_cvt(v,0,16);
 
-							dc_send(v>>24);
-							dc_handshake();
-							dc_send((v>>16)&255);
+							dc_send(v&255);
 							dc_handshake();
 							dc_send((v>>8)&255);
 							dc_handshake();
-							dc_send(v&255);
+							dc_send((v>>16)&255);
+							dc_handshake();
+							dc_send((v>>24)&255);
 							dc_handshake();
 						}
 					}

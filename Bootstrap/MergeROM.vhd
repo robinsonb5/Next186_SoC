@@ -6,7 +6,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
-use work.zpupkg.all;
+use work.rom_pkg.ALL;
 
 entity MergeROM is
 generic
@@ -16,46 +16,34 @@ generic
 port (
 	clk : in std_logic;
 	areset : in std_logic := '0';
-	from_zpu : in ZPU_ToROM;
-	to_zpu : out ZPU_FromROM;
-	from_rom1 : in ZPU_FromROM;
-	to_rom1 : out ZPU_ToROM;
-	from_rom2 : in ZPU_FromROM;
-	to_rom2 : out ZPU_ToROM
+	from_soc : in toROM;
+	to_soc : out fromROM;
+	from_rom1 : in fromROM;
+	to_rom1 : out toROM;
+	from_rom2 : in fromROM;
+	to_rom2 : out toROM
 );
 end entity;
 
 
 architecture arch of MergeROM is
 signal romsel_a : std_logic;
-signal romsel_b : std_logic;
 begin
 
-process(clk)
-begin
-	if rising_edge(clk) then
-		romsel_a<=from_zpu.memAAddr(maxAddrBitBRAM);
-		romsel_b<=from_zpu.memBAddr(maxAddrBitBRAM);
-	end if;
-end process;
+romsel_a<=from_soc.memAAddr(maxAddrBitBRAM);
 
 -- use high bit of incoming address to switch between two ROMS
-to_rom1.memAAddr<=from_zpu.memAAddr;
-to_rom1.memAWrite<=from_zpu.memAWrite;
-to_rom1.memBAddr<=from_zpu.memBAddr;
-to_rom1.memBWrite<=from_zpu.memBWrite;
-to_rom1.memAWriteEnable<=from_zpu.memAWriteEnable when from_zpu.memAAddr(maxAddrBitBRAM)='0' else '0';
-to_rom1.memBWriteEnable<=from_zpu.memBWriteEnable when from_zpu.memBAddr(maxAddrBitBRAM)='0' else '0';
+to_rom1.memAAddr<=from_soc.memAAddr;
+to_rom1.memAWrite<=from_soc.memAWrite;
+to_rom1.memAWriteEnable<=from_soc.memAWriteEnable when from_soc.memAAddr(maxAddrBitBRAM)='0' else '0';
+to_rom1.memAByteSel<=from_soc.memAByteSel;
 
-to_rom2.memAAddr<=from_zpu.memAAddr;
-to_rom2.memAWrite<=from_zpu.memAWrite;
-to_rom2.memBAddr<=from_zpu.memBAddr;
-to_rom2.memBWrite<=from_zpu.memBWrite;
-to_rom2.memAWriteEnable<=from_zpu.memAWriteEnable when from_zpu.memAAddr(maxAddrBitBRAM)='1' else '0';
-to_rom2.memBWriteEnable<=from_zpu.memBWriteEnable when from_zpu.memBAddr(maxAddrBitBRAM)='1' else '0';
+to_rom2.memAAddr<=from_soc.memAAddr;
+to_rom2.memAWrite<=from_soc.memAWrite;
+to_rom2.memAWriteEnable<=from_soc.memAWriteEnable when from_soc.memAAddr(maxAddrBitBRAM)='1' else '0';
+to_rom2.memAByteSel<=from_soc.memAByteSel;
 
-to_zpu.memARead <= from_rom1.memARead when romsel_a='0' else from_rom2.memARead;
-to_zpu.memBRead <= from_rom1.memBRead when romsel_b='0' else from_rom2.memBRead;
+to_soc.memARead <= from_rom1.memARead when romsel_a='0' else from_rom2.memARead;
 
 end arch;
 

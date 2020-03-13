@@ -1,7 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.numeric_std.ALL;
-use work.zpupkg.ALL;
+use work.rom_pkg.ALL;
 
 entity Bootstrap is
 	generic (
@@ -68,34 +68,44 @@ signal ser_rxint : std_logic;
 signal ser_rxrecv : std_logic;
 signal ser_rxdata : std_logic_vector(7 downto 0);
 
+-- CPU signals
 
--- ZPU signals
+signal soft_reset_n : std_logic;
+signal mem_busy : std_logic;
+signal mem_rom : std_logic;
+signal rom_ack : std_logic;
+signal from_mem : std_logic_vector(31 downto 0);
+signal cpu_addr : std_logic_vector(31 downto 0);
+signal to_cpu : std_logic_vector(31 downto 0);
+signal from_cpu : std_logic_vector(31 downto 0);
+signal cpu_req : std_logic; 
+signal cpu_ack : std_logic; 
+signal cpu_wr : std_logic; 
+signal cpu_bytesel : std_logic_vector(3 downto 0);
+signal mem_rd : std_logic; 
+signal mem_wr : std_logic; 
+signal mem_rd_d : std_logic; 
+signal mem_wr_d : std_logic; 
+signal cache_valid : std_logic;
+signal flushcaches : std_logic;
 
-signal mem_busy           : std_logic;
-signal mem_read             : std_logic_vector(wordSize-1 downto 0);
-signal mem_write            : std_logic_vector(wordSize-1 downto 0);
-signal mem_addr             : std_logic_vector(maxAddrBit downto 0);
-signal mem_writeEnable      : std_logic; 
-signal mem_writeEnableh      : std_logic; 
-signal mem_writeEnableb      : std_logic; 
-signal mem_readEnable       : std_logic;
+signal to_rom : ToROM;
+signal from_rom : FromROM;
 
-signal zpu_to_rom : ZPU_ToROM;
-signal zpu_from_rom : ZPU_FromROM;
 
 begin
 
 -- ROM
 
-	myrom : entity work.Bootstrap_ROM
+	myrom : entity work.Bootstrap_ROM_Merged
 	generic map
 	(
 		maxAddrBitBRAM => 12
 	)
 	port map (
 		clk => clk,
-		from_zpu => zpu_to_rom,
-		to_zpu => zpu_from_rom
+		from_soc => to_rom,
+		to_soc => from_rom
 	);
 
 -- Reset counter.
@@ -207,38 +217,64 @@ spi : entity work.spi_interface
 	
 -- Main CPU
 
-	zpu: zpu_core_flex
-	generic map (
-		IMPL_MULTIPLY => true,
-		IMPL_COMPARISON_SUB => true,
-		IMPL_EQBRANCH => true,
-		IMPL_STOREBH => true,
-		IMPL_LOADBH => true,
-		IMPL_CALL => true,
-		IMPL_SHIFT => true,
-		IMPL_XOR => true,
-		CACHE => false,
---		IMPL_EMULATION => minimal,
-		REMAP_STACK => false, -- We need to remap the Boot ROM / Stack RAM so we can access SDRAM
-		EXECUTE_RAM => false, -- We might need to execute code from SDRAM, too.
-		maxAddrBitBRAM => 13
-	)
-	port map (
-		clk                 => clk,
-		reset               => not reset,
-		interrupt			  => '0',
-		in_mem_busy         => mem_busy,
-		mem_read            => mem_read,
-		mem_write           => mem_write,
-		out_mem_addr        => mem_addr,
-		out_mem_writeEnable => mem_writeEnable,
-		out_mem_hEnable     => mem_writeEnableh,
-		out_mem_bEnable     => mem_writeEnableb,
-		out_mem_readEnable  => mem_readEnable,
-		from_rom => zpu_from_rom,
-		to_rom => zpu_to_rom
-	);
 
+	mem_rom <='1' when cpu_addr(31 downto 26)=X"0"&"00" else '0';
+	mem_rd<='1' when cpu_req='1' and cpu_wr='0' and mem_rom='0' else '0';
+	mem_wr<='1' when cpu_req='1' and cpu_wr='1' and mem_rom='0' else '0';
+
+	to_rom.MemAAddr<=cpu_addr(15 downto 2);
+	to_rom.MemAWrite<=from_cpu;
+	to_rom.MemAByteSel<=cpu_bytesel;
+		
+	process(clk)
+	begin
+		if rising_edge(clk) then
+			rom_ack<=cpu_req and mem_rom;
+
+			if mem_rom='1' then
+				to_cpu<=from_rom.MemARead;
+			else
+				to_cpu<=from_mem;
+			end if;
+
+			if (mem_busy='0' or rom_ack='1') and cpu_ack='0' then
+				cpu_ack<='1';
+			else
+				cpu_ack<='0';
+			end if;
+
+			if mem_rom='1' then
+				to_rom.MemAWriteEnable<=(cpu_wr and cpu_req);
+			else
+				to_rom.MemAWriteEnable<='0';
+			end if;
+	
+		end if;	
+	end process;
+	
+	cpu : entity work.eightthirtytwo_cpu
+	generic map
+	(
+		littleendian => true,
+		dualthread => false,
+		prefetch => true,
+		interrupts => false
+	)
+	port map
+	(
+		clk => clk,
+		reset_n => reset and soft_reset_n,
+
+		-- cpu fetch interface
+
+		addr => cpu_addr(31 downto 2),
+		d => to_cpu,
+		q => from_cpu,
+		bytesel => cpu_bytesel,
+		wr => cpu_wr,
+		req => cpu_req,
+		ack => cpu_ack
+	);
 	
 process(clk)
 begin
@@ -248,43 +284,47 @@ begin
 		divert_sdcard<='1';
 		ser_rxrecv<='1';
 	elsif rising_edge(clk) then
+		soft_reset_n<='1';
 		mem_busy<='1';
 		ser_txgo<='0';
 		ser_txgo2<='0';
 		spi_trigger<='0';
 
+		mem_rd_d<=mem_rd;
+		mem_wr_d<=mem_wr;
+		
 		-- Write from CPU?
-		if mem_writeEnable='1' then
-			case mem_addr(31)&mem_addr(10 downto 8) is
+		if mem_wr='1' and mem_wr_d='0' and mem_busy='1' then
+			case cpu_addr(31)&cpu_addr(10 downto 8) is
 				when X"F" =>	-- Peripherals at 0xFFFFFFF00
-					case mem_addr(7 downto 0) is
+					case cpu_addr(7 downto 0) is
 
 						when X"C0" => -- Debug UART
-							ser_txdata2<=mem_write(7 downto 0);
+							ser_txdata2<=from_cpu(7 downto 0);
 							ser_txgo2<='1';
 							mem_busy<='0';
 							
 						when X"C4" => -- Bootstrap UART
-							ser_txdata<=mem_write(7 downto 0);
+							ser_txdata<=from_cpu(7 downto 0);
 							ser_txgo<='1';
 							mem_busy<='0';
 
 						when X"C8" => -- System control
-							divert_sdcard<=mem_write(0);
+							divert_sdcard<=from_cpu(0);
 							mem_busy<='0';
 
 						when X"CC" => -- Data channel
-							dc_out<=mem_write(8 downto 0);
+							dc_out<=from_cpu(8 downto 0);
 							mem_busy<='0';
 
 						when X"D0" => -- SPI CS
-							spi_cs<=not mem_write(0);
-							spi_fast<=mem_write(8);
+							spi_cs<=not from_cpu(0);
+							spi_fast<=from_cpu(8);
 							mem_busy<='0';
 
 						when X"D4" => -- SPI Data
 							spi_trigger<='1';
-							host_to_spi<=mem_write(7 downto 0);
+							host_to_spi<=from_cpu(7 downto 0);
 							spi_active<='1';
 
 						when others =>
@@ -292,38 +332,39 @@ begin
 							null;
 					end case;
 				when others => -- SDRAM
-					mem_busy<='0';
+--					mem_busy<='0';
+					null;
 			end case;
 
-		elsif mem_readEnable='1' then -- Read from CPU?
-			case mem_addr(31)&mem_addr(10 downto 8) is
+		elsif mem_rd='1' and mem_rd_d='0' and mem_busy='1' then -- Read from CPU?
+			case cpu_addr(31)&cpu_addr(10 downto 8) is
 
 				when X"F" =>	-- Peripherals
-					case mem_addr(7 downto 0) is
+					case cpu_addr(7 downto 0) is
 						when X"C0" => -- Debug UART
-							mem_read<=(others=>'X');
-							mem_read(9 downto 0)<=ser_rxrecv&ser_txready2&ser_rxdata;
+							from_mem<=(others=>'X');
+							from_mem(9 downto 0)<=ser_rxrecv&ser_txready2&ser_rxdata;
 							ser_rxrecv<='0';	-- Clear rx flag.
 							mem_busy<='0';
 
 						when X"C4" => -- Bootstrap UART
-							mem_read<=(others=>'X');
-							mem_read(9 downto 0)<='0'&ser_txready&X"00";
+							from_mem<=(others=>'X');
+							from_mem(9 downto 0)<='0'&ser_txready&X"00";
 							mem_busy<='0';
 							
 						when X"C8" => -- Millisecond counter
-							mem_read<=std_logic_vector(millisecond_counter);
+							from_mem<=std_logic_vector(millisecond_counter);
 							mem_busy<='0';
 							
 						when X"CC" => -- Data channel out
-							mem_read(8 downto 0)<=dc_in;
-							mem_read(31 downto 9)<=(others=>'0');
+							from_mem(8 downto 0)<=dc_in;
+							from_mem(31 downto 9)<=(others=>'0');
 							mem_busy<='0';
 
 
 						when X"D0" => -- SPI Status
-							mem_read<=(others=>'X');
-							mem_read(15)<=spi_busy;
+							from_mem<=(others=>'X');
+							from_mem(15)<=spi_busy;
 							mem_busy<='0';
 
 						when X"D4" => -- SPI read (blocking)
@@ -331,24 +372,27 @@ begin
 
 						when others =>
 							mem_busy<='0';
-							null;
 					end case;
 
 				when others => -- SDRAM
-					mem_busy<='0';
+					null;
+--					mem_busy<='0';
 			end case;
 		end if;
 		
-
-	-- Set this after the read operation has potentially cleared it.
+		-- Set this after the read operation has potentially cleared it.
 		if ser_rxint='1' then
 			ser_rxrecv<='1';
+			if ser_rxdata=X"04" then
+				soft_reset_n<='0';
+				ser_rxrecv<='0';
+			end if;
 		end if;
 
 	-- SPI cycles
 
 		if spi_active='1' and spi_busy='0' then
-			mem_read<=spi_to_host;
+			from_mem<=spi_to_host;
 			spi_active<='0';
 			mem_busy<='0';
 		end if;

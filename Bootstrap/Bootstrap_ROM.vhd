@@ -8,9 +8,9 @@ use ieee.numeric_std.all;
 
 
 library work;
-use work.zpupkg.all;
+use work.rom_pkg.ALL;
 
-entity Bootstrap_ROM is
+entity Bootstrap_ROM_Merged is
 generic
 	(
 		maxAddrBitBRAM : integer := maxAddrBitBRAMLimit -- Specify your actual ROM size to save LEs and unnecessary block RAM usage.
@@ -18,17 +18,17 @@ generic
 port (
 	clk : in std_logic;
 	areset : in std_logic := '0';
-	from_zpu : in ZPU_ToROM;
-	to_zpu : out ZPU_FromROM
+	from_soc : in toROM;
+	to_soc : out fromROM
 );
-end Bootstrap_ROM;
+end Bootstrap_ROM_Merged;
 
-architecture arch of Bootstrap_ROM is
+architecture arch of Bootstrap_ROM_Merged is
 
-signal to_rom1 : ZPU_ToROM;
-signal from_rom1 : ZPU_FromROM;
-signal to_rom2 : ZPU_ToROM;
-signal from_rom2 : ZPU_FromROM;
+signal to_rom1 : toROM;
+signal from_rom1 : fromROM;
+signal to_rom2 : toROM;
+signal from_rom2 : fromROM;
 
 begin
 
@@ -39,8 +39,8 @@ begin
 	)
 	port map (
 		clk => clk,
-		from_zpu => to_rom1,
-		to_zpu => from_rom1
+		from_soc => to_rom1,
+		to_soc => from_rom1
 	);
 
 	myrom2 : entity work.Bootstrap_ROM2
@@ -50,8 +50,8 @@ begin
 	)
 	port map (
 		clk => clk,
-		from_zpu => to_rom2,
-		to_zpu => from_rom2
+		from_soc => to_rom2,
+		to_soc => from_rom2
 	);
 
 	merge : entity work.MergeROM
@@ -61,8 +61,8 @@ begin
 	)
 	port map (
 		clk => clk,
-		from_zpu => from_zpu,
-		to_zpu => to_zpu,
+		from_soc => from_soc,
+		to_soc => to_soc,
 		from_rom1 => from_rom1,
 		to_rom1 => to_rom1,
 		from_rom2 => from_rom2,

@@ -19,9 +19,15 @@ clean :
 	-rm *.elf
 
 %_ROM.vhd: %.bin $(ROMGEN)
-	sed 's/dualportram/$*_rom/' >$*_ROM.vhd <$(ROMGENDIR)/rom_prologue.vhd
+	sed 's/dualportram/$*_ROM/' >$*_ROM.vhd <$(ROMGENDIR)/rom_prologue.vhd
 	$(ROMGEN) -b $*.bin >>$*_ROM.vhd
 	cat >>$*_ROM.vhd $(ROMGENDIR)/rom_epilogue.vhd
+	sed 's/dualportram/$*_ROM1/' >$*_ROM1.vhd <$(ROMGENDIR)/rom_prologue.vhd
+	$(ROMGEN) -b -l4096 $*.bin >>$*_ROM1.vhd
+	cat >>$*_ROM1.vhd $(ROMGENDIR)/rom_epilogue.vhd
+	sed 's/dualportram/$*_ROM2/' >$*_ROM2.vhd <$(ROMGENDIR)/rom_prologue.vhd
+	$(ROMGEN) -b -o4096 -l2048 $*.bin >>$*_ROM2.vhd
+	cat >>$*_ROM2.vhd $(ROMGENDIR)/rom_epilogue.vhd
 
 %.bin : %.elf Makefile
 	objcopy -Obinary $< $@

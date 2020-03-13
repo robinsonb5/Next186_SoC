@@ -34,8 +34,8 @@ dd_buf.qip
 opl3_mem.qip
 opl3_in.qip
 ../Bootstrap/Next186SOCWrapper.vhd
-../ZPUFlex/RTL/zpu_core_flex.vhd
-../ZPUFlex/RTL/zpupkg.vhd
+../EightThirtyTwo/RTL/eightthirtytwo.qip
+../EightThirtyTwo/romgen/rom_pkg.vhd
 ../Bootstrap/Bootstrap.vhd
 ../Bootstrap/spi.vhd
 ../Bootstrap/simple_uart.vhd
@@ -43,4 +43,5 @@ opl3_in.qip
 ../Bootstrap/Bootstrap_ROM.vhd
 ../Bootstrap/Firmware/Bootstrap_ROM2.vhd
 ../Bootstrap/Firmware/Bootstrap_ROM1.vhd
+../Bootstrap/jtag_uart.vhd
 
