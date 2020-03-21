@@ -73,13 +73,19 @@ architecture RTL of DE10Lite_Toplevel is
 -- Global signals
 	signal n_reset : std_logic;
 
--- PS/2 Keyboard socket - used for second mouse
+-- PS/2 Keyboard socket
+	alias ps2_keyboard_clk : std_logic is GPIO(10);
+	alias ps2_keyboard_dat : std_logic is GPIO(12);
+
 	signal ps2_keyboard_clk_in : std_logic;
 	signal ps2_keyboard_dat_in : std_logic;
 	signal ps2_keyboard_clk_out : std_logic;
 	signal ps2_keyboard_dat_out : std_logic;
 
 -- PS/2 Mouse
+	alias ps2_mouse_clk : std_logic is GPIO(14);
+	alias ps2_mouse_dat : std_logic is GPIO(16);
+
 	signal ps2_mouse_clk_in: std_logic;
 	signal ps2_mouse_dat_in: std_logic;
 	signal ps2_mouse_clk_out: std_logic;
@@ -100,8 +106,8 @@ architecture RTL of DE10Lite_Toplevel is
 	signal rs232_txd : std_logic;
 
 -- Sound
-	signal audio_l : std_logic_vector(15 downto 0);
-	signal audio_r : std_logic_vector(15 downto 0);
+	signal sigmaL : std_logic;
+	signal sigmaR : std_logic;
 
 -- IO
 
@@ -178,10 +184,21 @@ n_reset<=pll1_locked and pll2_locked and pll3_locked and KEY(0) and SW(0);
 DRAM_CKE<='1';
 DRAM_CS_N<='0';
 
-ps2_keyboard_clk_in<='1';
-ps2_keyboard_dat_in<='1';
-ps2_mouse_clk_in<='1';
-ps2_mouse_dat_in<='1';
+-- External devices tied to GPIOs
+
+GPIO(18)<=sigmaL;
+GPIO(20)<=sigmaR;
+
+ps2_mouse_dat_in<=ps2_mouse_dat;
+ps2_mouse_dat <= '0' when ps2_mouse_dat_out='0' else 'Z';
+ps2_mouse_clk_in<=ps2_mouse_clk;
+ps2_mouse_clk <= '0' when ps2_mouse_clk_out='0' else 'Z';
+
+ps2_keyboard_dat_in<=ps2_keyboard_dat;
+ps2_keyboard_dat <= '0' when ps2_keyboard_dat_out='0' else 'Z';
+ps2_keyboard_clk_in<=ps2_keyboard_clk;
+ps2_keyboard_clk <= '0' when ps2_keyboard_clk_out='0' else 'Z';
+
 
 sys_inst: entity work.Next186SOCWrapper
 	generic map (
@@ -192,7 +209,7 @@ sys_inst: entity work.Next186SOCWrapper
 	)
 	port map (
 		CLK_50MHZ => MAX10_CLK1_50,
-		opl_reset => not n_reset,
+		opl_reset => not (KEY(1) and n_reset),
 		clk_25=>clk_25,
 		clk_sdr => memclk,
 		clk_cpu => clk_cpu,
@@ -225,8 +242,8 @@ sys_inst: entity work.Next186SOCWrapper
 		SD_DI=>spi_mosi,
 		SD_CK=>spi_clk,
 		SD_DO=>spi_miso,
---		AUD_L=>sigmaL,
---		AUD_R=>sigmaR,
+		AUD_L=>sigmaL,
+		AUD_R=>sigmaR,
 
 	 	PS2_CLK1=>ps2_keyboard_clk_in,
  	   PS2_CLK1_nOE=>ps2_keyboard_clk_out,
@@ -289,6 +306,7 @@ sys_inst: entity work.Next186SOCWrapper
 --		dout => sigma_r
 --	);
 
+GPIO(1)<='Z';
 GPIO(0)<=rs232_txd;
 rs232_rxd<=GPIO(1);
 

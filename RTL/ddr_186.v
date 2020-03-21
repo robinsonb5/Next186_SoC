@@ -151,7 +151,6 @@
 module system
 	(
 		 input 	CLK_50MHZ, // for OPL3
-		 input opl_reset,
 		 input clk_25,
 		 input clk_sdr,
 		 input clk_cpu,
@@ -796,8 +795,7 @@ endgenerate
         .left(opl3left),
         .right(opl3right),
         .stb44100(stb44100),
-//        .reset(!rstcount[18])    
-        .reset(opl_reset|(!rstcount[18]))
+        .reset(!rstcount[18])
      );
 	
 	i2c_master_byte i2cmb

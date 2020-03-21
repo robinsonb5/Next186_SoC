@@ -184,6 +184,22 @@ SCANCODE1   equ 1
 ;       f000h                   15000h
 
 
+DC_READBLOCK equ 82h
+DC_WRITEBLOCK equ 83h
+DC_VERIFYBLOCK equ 84h
+DC_READCAPACITY equ 0E0h
+
+DC_FDREADBLOCK equ 2h
+DC_FDWRITEBLOCK equ 3h
+DC_FDVERIFYBLOCK equ 4h
+DC_FDREADCAPACITY equ 60h
+
+DC_SETIMAGE equ 0FCh
+DC_BOOTSTRAP equ 0FDh
+DC_DEBUG equ 0FEh
+DC_NOP equ 0FFh
+
+
 RAMSize   equ    200h        ; 64KB segments
 
 ; Graphics character set
@@ -2469,7 +2485,7 @@ dbghex:
 		mov	cl,4
 		mov	bx,ax
 dbghexloop:
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		rol	bx,4
 		mov	ax,bx
@@ -2499,7 +2515,7 @@ int13   proc near
 		cmp	dl,00h
 		jne	short	skipdbg
 		push	ax
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'I'
 		call	dc_lo
@@ -2587,7 +2603,7 @@ DiskGetTypeexit:
 DiskTypeFloppy:
 		cmp	dl,00h	; Drive A
 		jne	DiskReset
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'F'
 		call	dc_lo
@@ -2608,7 +2624,7 @@ DiskExtInstCheck:
 DiskGetStatus:
 		; FIXME - should probably be specific to each drive?
 		push	ax
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'s'
 		call	dc_lo
@@ -2620,7 +2636,7 @@ DiskGetStatus:
 DiskVerify:
 		; FIXME - need to support verify on floppy disks.
 		push	ax
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'v'
 		call	dc_lo
@@ -2634,7 +2650,7 @@ DiskReset:
 DiskChanged:
 DiskPark:
 		push	ax
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'m'
 		call	dc_lo
@@ -2644,7 +2660,7 @@ DiskPark:
 
 DiskWrite:
 		push	ax
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'w'
 		call	dc_lo
@@ -2758,7 +2774,7 @@ DiskRecalibrate:
 DiskDiag:
 DiskExtSeek:
 		push	ax
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'k'
 		call	dc_lo
@@ -2865,7 +2881,7 @@ DiskExtGetParams:
 
 FloppyGetParams:
 		push	ax
-		mov	al,0feh
+		mov	al,DC_DEBUG
 		call	dc_hi
 		mov	al,'g'
 		call	dc_lo
@@ -3925,19 +3941,16 @@ prtse:
 
 
 ;---------------------  read ----------------------
-sdverify:
-		; FIXME - implement verifications
-		ret
 
 fdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 		push ax
-		mov	ax,03h
+		mov	ax,DC_FDREADBLOCK
 		jmp	short sdread1
 
 sdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 
 		push ax
-		mov	ax,83h
+		mov	ax,DC_READBLOCK
 sdread1:
 		call	dc_hi	; cmd
 		mov	al,dh
@@ -3958,7 +3971,6 @@ sdread1:
 		mov	cl,0	; sectors -> 16-bit words
 		mov	di,bx
 _readsectorloop:
-;		call 	dc_hi
 		mov	bl,al
 		call	dc_hi
 		mov	ah,al
@@ -3968,28 +3980,34 @@ _readsectorloop:
 		dec	cx
 		jne	_readsectorloop
 
-;		call	dc_hi	; error code - FIXME - react to this
-		mov	al,80h 	; NOP
-		call	dc_lo	; restore parity
-		mov	al,80h 	; NOP
-		call	dc_hi	; restore parity
-		mov	al,80h 	; NOP
+		mov	al,DC_NOP 	; NOP
+		call	dc_hi	; Error code - should respond to this...
+		mov	al,DC_NOP 	; NOP
 		call	dc_lo	; restore parity
 
 		pop ax
 		ret
 
+fdverify:
+		push ax
+		mov	ax,DC_FDVERIFYBLOCK
+		jmp short	sdwrite1
+
+sdverify:
+		push ax
+		mov	ax,DC_VERIFYBLOCK
+		jmp short	sdwrite1
 
 fdwrite:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
 		push ax
-		mov	ax,04h
+		mov	ax,DC_FDWRITEBLOCK
 		jmp	short sdwrite1
 
 ;---------------------  write ----------------------
 sdwrite:   ; DX:AX sector, ES:BX buffer, CX=sectors, returns AX=wrote sectors
 
 		push ax
-		mov	ax,84h  ; Write block command
+		mov	ax,DC_WRITEBLOCK ; Write block command
 sdwrite1:
 		call	dc_hi	; cmd
 		mov	al,dh
@@ -4020,6 +4038,11 @@ _writesectorloop:
 		dec	cx
 		jne	_writesectorloop
 
+		mov	al,DC_NOP 	; NOP
+		call	dc_hi	; Error code - should respond to this...
+		mov	al,DC_NOP 	; NOP
+		call	dc_lo	; restore parity
+
 		pop ax
 		ret
 
@@ -4033,7 +4056,7 @@ fdinit	proc near
 		pop	ds
 		mov	si,fdimgname
 
-		mov	al,090h ; DC_SETIMAGE
+		mov	al,DC_SETIMAGE ; DC_SETIMAGE
 		call	dc_hi
 imgnameloop:
 		lodsb
@@ -4052,7 +4075,7 @@ imgnamesent:
 fdinit  endp		
 ;---------------------  init SD ----------------------
 sdinit  proc near       ; returns AX = num kilosectors
-		mov	al,82h
+		mov	al,DC_READCAPACITY
 		push	bx
 		call	dc_hi
 		mov	bh,al

@@ -218,7 +218,7 @@ nHSync<=vga_hsync;
 			c0 => clk_cpu, -- About 60Mhz?
 			c1 => clk_dsp, -- About 60MHz?
 			c2 => clk_100, -- around 100 MHz for the chameleon builtin modules
-			c3 => clk_50,
+			c3 => clk_50, -- 50Mhz clock required by OPL3 emulation
 			locked => pll2_locked
 		);
 
@@ -245,7 +245,7 @@ my1mhz : entity work.chameleon_1mhz
 
 myReset : entity work.gen_reset
 	generic map (
-		resetCycles => 131071
+		resetCycles => 15
 	)
 	port map (
 		clk => clk8,	-- Shouldn't run this from a PLL generated clock since it needs to run while the PLLs aren't yet stable.

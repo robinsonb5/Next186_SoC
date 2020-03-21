@@ -48,6 +48,21 @@
 .model tiny
 .code
 
+DC_READBLOCK equ 82h
+DC_WRITEBLOCK equ 83h
+DC_VERIFYBLOCK equ 84h
+DC_READCAPACITY equ 0E0h
+
+DC_FDREADBLOCK equ 2h
+DC_FDWRITEBLOCK equ 3h
+DC_FDVERIFYBLOCK equ 4h
+DC_FDREADCAPACITY equ 60h
+
+DC_SETIMAGE equ 0FCh
+DC_BOOTSTRAP equ 0FDh
+DC_DEBUG equ 0FEh
+DC_NOP equ 0FFh
+
 
 BIOSSIZE    EQU     16      ; sectors
 BOOTOFFSET  EQU     0fc00h  ; bootstrap code offset in segment 0f000h
@@ -186,7 +201,7 @@ loadbios:	; Ask the control module to open the BIOS image.  If this fails we'll 
 		push	cs
 		pop	ds
 		mov	si,fdimgname + BOOTOFFSET - begin
-		mov	al,090h ; DC_SETIMAGE
+		mov	al,DC_SETIMAGE ; DC_SETIMAGE
 		call	dc_hi
 imgnameloop:
 		lodsb
@@ -202,7 +217,7 @@ imgnamesent:
 		test	al,al	; 0 for success
 		jne	short rs232boot
 
-		mov	al,03h	; read from image file
+		mov	al,DC_FDREADBLOCK	; read from image file
 		call	dc_hi	; cmd
 
 		mov	al,0
@@ -219,9 +234,8 @@ imgnamesent:
 		mov	cx,4096	; sectors -> 16-bit words
 		xor	di,di	; destination
 _readsectorloop:
-;		call 	dc_hi	; First byte of response came at last dc_lo
 		mov	bl,al
-		call	dc_hi
+		call	dc_hi	; First byte of response came at last dc_lo
 		mov	ah,al
 		mov	al,bl
 		stosw
@@ -229,9 +243,9 @@ _readsectorloop:
 		dec	cx
 		jne	short _readsectorloop
 
-		mov	al,80h 	; NOP
+		mov	al,DC_NOP 	; NOP
 		call	dc_hi	; restore parity
-		mov	al,80h 	; NOP
+		mov	al,DC_NOP 	; NOP
 		call	dc_lo	; restore parity
 
 		mov	si,di
@@ -302,7 +316,6 @@ endreloc:
 handshake:
 
 		ret
-biosfile  db  'BIOSNEXT186',0
 booterrmsg  db  'Waiting for BIOS image...', 0
 
 

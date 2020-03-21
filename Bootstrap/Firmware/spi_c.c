@@ -299,14 +299,9 @@ int sd_write_sector(unsigned long lba,unsigned char *buf) // FIXME - Stub
     SPI(0xFE); // send Data Token
 
     // send sector bytes
-    for (i = 0; i < 128; i++)
+    for (i = 0; i < 512; i++)
 	{
-		int t=*(int *)buf;
-		SPI((t>>24)&255);
-		SPI((t>>16)&255);
-		SPI((t>>8)&255);
-		SPI(t&255);
-		buf+=4;
+		SPI(*buf++);
 	}
 
     SPI(0xFF); // send CRC lo byte
@@ -347,6 +342,7 @@ static int sd_read(unsigned char *buf,int bytes)
 			int j;
 //			SPI(0xff);
 			spi_checksum=0;
+#if 0
 			for(;bytes>=4;bytes-=4)
 			{
 				int t,v;
@@ -357,6 +353,7 @@ static int sd_read(unsigned char *buf,int bytes)
 				buf+=4;
 				spi_checksum+=t;
 			}
+#endif
 			for(;bytes>0;--bytes)
 			{
 				int t,v;

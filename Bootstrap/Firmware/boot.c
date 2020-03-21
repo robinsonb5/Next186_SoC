@@ -1,9 +1,7 @@
-/*	Firmware for loading files from SD card.
-	Part of the ZPUTest project by Alastair M. Robinson.
+/*
+	Firmware for loading BIOS from SD card.
+	Provides block level access both to floppy images and the whole card.
 	SPI and FAT code borrowed from the Minimig project.
-
-	This boot ROM ends up stored in the ZPU stack RAM
-	memory-mapped to 0x0000000
 */
 
 
@@ -18,16 +16,20 @@
 #define HW_DATACHANNEL(x) (*(volatile unsigned int *)(DATACHANNEL+x))
 #define DC_HANDSHAKE 0x100
 
-#define DC_NOP 0x80
-#define DC_BOOTSTRAP 0x81
-#define DC_SETIMAGE 0x90
-#define DC_READCAPACITY 0x82
-#define DC_READBLOCK 0x83
-#define DC_WRITEBLOCK 0x84
-#define DC_FDREADCAPACITY 0x2
-#define DC_FDREADBLOCK 0x3
-#define DC_FDWRITEBLOCK 0x4
+#define DC_FDREADCAPACITY 0x60
+#define DC_FDREADBLOCK 0x2
+#define DC_FDWRITEBLOCK 0x3
+#define DC_FDVERIFYBLOCK 0x4
+
+#define DC_READBLOCK 0x82
+#define DC_WRITEBLOCK 0x83
+#define DC_VERIFYBLOCK 0x84
+#define DC_READCAPACITY 0xE0
+
+#define DC_SETIMAGE 0xFC
+#define DC_BOOTSTRAP 0xFD
 #define DC_DEBUG 0xFE
+#define DC_NOP 0xFF
 
 #define SYSTEMBASE 0xFFFFFFC8
 #define HW_SYSTEM(x) *(volatile unsigned int *)(SYSTEMBASE+x)
@@ -43,8 +45,6 @@ char filename[12];
 
 static int parity;
 
-int _cvt(int val, char *buf, int radix);
-
 int dc_handshake()
 {
 	int t;
@@ -55,6 +55,31 @@ int dc_handshake()
 }
 
 #define dc_send(x) (HW_DATACHANNEL(0)=(((x)&255)|parity))
+
+static void puthex(int val)
+{
+	int c;
+	int i;
+	int nz=0;
+	if(val)
+	{
+		for(i=0;i<8;++i)
+		{
+			c=(val>>28)&0xf;
+			val<<=4;
+			if(c)
+				nz=1;	// Non-zero?  Start printing then.
+			if(c>9)
+				c+='A'-10;
+			else
+				c+='0';
+			if(nz)	// If we've encountered only zeroes so far we don't print.
+				putchar(c);
+		}
+	}
+	else
+		putchar('0');
+}
 
 int main(int argc,char **argv)
 {
@@ -73,9 +98,8 @@ int main(int argc,char **argv)
 
 		while(1)
 		{
+			int result=0;
 			int cmd=dc_handshake();
-//			if(!parity)
-//				puts("Parity error\n");
 
 			switch(cmd)
 			{
@@ -109,6 +133,7 @@ int main(int argc,char **argv)
 				case DC_DEBUG:
 					dc_send(DC_DEBUG);
 					putchar(dc_handshake());
+					putchar(' ');
 					dc_send(DC_DEBUG);
 					break;
 
@@ -119,93 +144,88 @@ int main(int argc,char **argv)
 					dc_send(0); lba|=dc_handshake()<<8;
 					dc_send(0); lba|=dc_handshake();
 					dc_send(0); count=dc_handshake();
-					putchar('w');
-//					_cvt(lba,0,16);
-//					puts("Got addr and count\n");
-					// FIXME - send some kind of error code here
+
+					putchar('W');
+					puthex(count);
+					putchar(' ');
+					puthex(lba);
+					putchar(' ');
+
 					while(count--)
 					{
-						int *ptr=(int *)sector_buffer;
-//						puts("W\n");
+						unsigned char *ptr=(unsigned char *)sector_buffer;
 						if(cmd==DC_FDWRITEBLOCK)	// Must do this before receiving data,
 							FileSeek(&file,lba++);	// since it trashes the sector buffer!
 
-						for(i=0;i<128;++i)
+						for(i=0;i<512;++i)
 						{
-							unsigned int v;
 							dc_send(0);
-							v=dc_handshake();
-							dc_send(0);
-							v|=dc_handshake()<<8;
-							dc_send(0);
-							v|=dc_handshake()<<16;
-							dc_send(0);
-							v|=dc_handshake()<<24;
-							*ptr++=v;
+							*ptr++=dc_handshake();
 						}
-//						puts("w\n");
 						if(cmd==DC_FDWRITEBLOCK)
 							FileWrite(&file,sector_buffer);
 						else
 							sd_write_sector(lba++,sector_buffer);
+						putchar('.');
 					}
 					dc_send(0); // Error code
 				
 					break;
 
+				case DC_VERIFYBLOCK:
+				case DC_FDVERIFYBLOCK:
 				case DC_READBLOCK:
 				case DC_FDREADBLOCK:
-					putchar('r');
-	//				puts("Read\n");
 					dc_send(0); lba=dc_handshake()<<24;
 					dc_send(0); lba|=dc_handshake()<<16;
 					dc_send(0); lba|=dc_handshake()<<8;
 					dc_send(0); lba|=dc_handshake();
 					dc_send(0); count=dc_handshake();
-//					_cvt(lba,0,16);
-					// FIXME - send some kind of error code here
+
+					putchar('R');
+					puthex(count);
+					putchar(' ');
+					puthex(lba);
+					putchar(' ');
+
 					while(count--)
 					{
-						int *ptr=(int *)sector_buffer;
+						unsigned char *ptr=sector_buffer;
 						if(cmd==DC_FDREADBLOCK)
  						{
 							// FIXME - send error if there's no fdimage.
-//							puts(" FS");
-//							_cvt(lba,0,16);
-							putchar(' ');
 							FileSeek(&file,lba++);
 							FileRead(&file,sector_buffer);
 						}
 						else
 						{
-//							puts(" R");
 							sd_read_sector(lba++,sector_buffer);
 						}
-	//					puts("Sending block\n");
-						for(i=0;i<128;++i)
+						if(cmd==DC_VERIFYBLOCK || cmd==DC_FDVERIFYBLOCK)
 						{
-							unsigned int v=*ptr++;
-//							if(cmd==DC_FDREADBLOCK)
-//								_cvt(v,0,16);
-
-							dc_send(v&255);
-							dc_handshake();
-							dc_send((v>>8)&255);
-							dc_handshake();
-							dc_send((v>>16)&255);
-							dc_handshake();
-							dc_send((v>>24)&255);
-							dc_handshake();
+							for(i=0;i<512;++i)
+							{
+								dc_send(0);
+								if(*ptr++!=dc_handshake())
+									result=0xff;
+							}
 						}
+						else
+						{
+							for(i=0;i<512;++i)
+							{
+								dc_send(*ptr++);
+								dc_handshake();
+							}
+						}
+						putchar('.');
 					}
 					dc_send(0); // Error code
-//					dc_handshake();
 					break;
 
 
 				case DC_READCAPACITY:
 					puts("RCAP ");
-//					fdinit=FileOpen(&file,"NEXTBOOTIMG"); // Prepare floppy image. Send SD card size.
 					dc_send(sd_size>>24);
 					dc_handshake();
 					dc_send(sd_size>>16);
@@ -214,44 +234,9 @@ int main(int argc,char **argv)
 					dc_handshake();
 					dc_send(sd_size);
 					break;
-#if 0
-				case DC_BOOTSTRAP:
-					puts("BSTP ");
 
-					if(FileOpen(&file,"BIOSNEXT186"))
-					{
-						int imgsize=(file.size+511)/512;
-						int c=0;
-						int sector=0;
-
-						struct BIOSTag *tag=(struct BIOSTag *)sector_buffer;
-						while(c<imgsize)
-						{
-							if(!FileRead(&file,sector_buffer))
-								return(0);
-
-							puts("s\n");
-
-							for(i=0;i<512;++i)
-							{
-								dc_send(sector_buffer[i]);
-								dc_handshake();
-								if(parity) putchar('-'); else putchar('_');
-							}
-							++c;
-							if(c<imgsize)
-								FileNextSector(&file);
-						}
-					}
-					else
-					{
-						puts("FErr ");
-						return(0);
-					}
-					break;
-#endif
 				default:
-					_cvt(cmd,0,16);
+					puthex(cmd);
 					puts("? ");
 					break;
 			}

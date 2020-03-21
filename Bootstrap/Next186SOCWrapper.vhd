@@ -15,13 +15,13 @@ entity Next186SOCWrapper is
 	PORT
 	(
 		CLK_50MHZ	:	 IN STD_LOGIC;
-		opl_reset : in std_logic;
 		clk_25		:	 in STD_LOGIC;
 		clk_sdr		:	 in STD_LOGIC;
 		clk_cpu		:	 in STD_LOGIC;
 		clk_dsp		:	 in STD_LOGIC;
 		CLK44100x256		:	 in STD_LOGIC;
 		CLK14745600		:	 in STD_LOGIC;
+		diskbutton : in std_logic;
 		sdr_n_CS_WE_RAS_CAS		:	 OUT STD_LOGIC_VECTOR(3 DOWNTO 0);
 		sdr_BA		:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0);
 		sdr_ADDR		:	 OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
@@ -75,7 +75,6 @@ COMPONENT system
 	PORT
 	(
 		CLK_50MHZ	:	 IN STD_LOGIC;
-		opl_reset	: in std_logic;
 		clk_25		:	 in STD_LOGIC;
 		clk_sdr		:	 in STD_LOGIC;
 		clk_cpu		:	 in STD_LOGIC;
@@ -155,6 +154,7 @@ bootstrap_inst : work.Bootstrap
 	(
 		clk=>clk_cpu,
 		reset_in => not BTN_RESET,
+		diskbutton => diskbutton,
 		spi_mosi => spi_mosi,
 		spi_miso => SD_DO,
 		spi_clk => spi_clk,
@@ -177,7 +177,6 @@ sys_inst: component system
 	)
 	port map (
 		CLK_50MHZ => CLK_50MHz,
-		opl_reset => opl_reset,
 		clk_25=>clk_25,
 		clk_sdr => clk_sdr,
 		clk_cpu => clk_cpu,

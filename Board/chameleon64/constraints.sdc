@@ -81,9 +81,16 @@ set_multicycle_path -from [get_clocks {sdram_clk_pin}] -to [get_clocks {mypll|al
 #set_multicycle_path -from {sd_data[*]} -to {TG68Test:mytg68test|sdram:mysdram|vga_data[*]} -setup -end 2
 #set_multicycle_path -from {sd_data[*]} -to {TG68Test:mytg68test|sdram:mysdram|sdata_reg[*]} -setup -end 2
 
-set_multicycle_path -through *zpu*Mult0* -setup -end 2
-set_multicycle_path -through *zpu*Mult0* -hold -end 2
-
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|FETCH*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_lru*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|FETCH*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_addr*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|ICODE*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_lru*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|ICODE*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_addr*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|STAGE*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_lru*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|STAGE*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_addr*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|FETCH*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache:cache_mem|*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|Next186_Regs:REGS*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_addr*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|Next186_Regs:REGS*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|cache_lru*} -setup -end 3
+set_multicycle_path -from {Next186SOCWrapper:sys_inst|system:sys_inst|unit186:CPUUnit|Next186_CPU:cpu|FETCH*} -to {Next186SOCWrapper:sys_inst|system:sys_inst|cache_controller:cache_ctl|flushcount*} -setup -end 3
 
 #**************************************************************
 # Set False Path

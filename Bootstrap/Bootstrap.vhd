@@ -11,6 +11,8 @@ entity Bootstrap is
 		clk 			: in std_logic;
 		reset_in 	: in std_logic;
 
+		diskbutton : in std_logic;
+		
 		-- SPI signals
 		spi_miso		: in std_logic := '1'; -- Allow the SPI interface not to be plumbed in.
 		spi_mosi		: out std_logic;
