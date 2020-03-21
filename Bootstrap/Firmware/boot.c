@@ -16,10 +16,10 @@
 #define HW_DATACHANNEL(x) (*(volatile unsigned int *)(DATACHANNEL+x))
 #define DC_HANDSHAKE 0x100
 
-#define DC_FDREADCAPACITY 0x60
 #define DC_FDREADBLOCK 0x2
 #define DC_FDWRITEBLOCK 0x3
 #define DC_FDVERIFYBLOCK 0x4
+#define DC_FDREADCAPACITY 0x60
 
 #define DC_READBLOCK 0x82
 #define DC_WRITEBLOCK 0x83
@@ -34,6 +34,11 @@
 #define SYSTEMBASE 0xFFFFFFC8
 #define HW_SYSTEM(x) *(volatile unsigned int *)(SYSTEMBASE+x)
 #define REG_SYSCONTROL 0
+
+#define INTERRUPTBASE 0xffffffb0	// Not actually used for interrupts, but a latching trigger for the disk button
+#define HW_INTERRUPT(x) *(volatile unsigned int *)(INTERRUPTBASE+x)
+#define REG_INTERRUPT_CTRL 0x0
+
 
 // #define puts(x) 
 void _boot();
@@ -100,6 +105,12 @@ int main(int argc,char **argv)
 		{
 			int result=0;
 			int cmd=dc_handshake();
+
+			if(HW_INTERRUPT(REG_INTERRUPT_CTRL)&1)
+			{
+				puts("flip disk\n");
+				HW_INTERRUPT(REG_INTERRUPT_CTRL)=0; // Clear latch
+			}
 
 			switch(cmd)
 			{
@@ -220,7 +231,7 @@ int main(int argc,char **argv)
 						}
 						putchar('.');
 					}
-					dc_send(0); // Error code
+					dc_send(result); // Error code
 					break;
 
 

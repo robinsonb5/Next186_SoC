@@ -209,7 +209,7 @@ sys_inst: entity work.Next186SOCWrapper
 	)
 	port map (
 		CLK_50MHZ => MAX10_CLK1_50,
-		opl_reset => not (KEY(1) and n_reset),
+		diskbutton => KEY(1),
 		clk_25=>clk_25,
 		clk_sdr => memclk,
 		clk_cpu => clk_cpu,

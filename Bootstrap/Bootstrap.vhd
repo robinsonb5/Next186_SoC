@@ -91,6 +91,10 @@ signal mem_wr_d : std_logic;
 signal cache_valid : std_logic;
 signal flushcaches : std_logic;
 
+-- Interrupt signals
+
+signal diskbutton_reg : std_logic :='0';
+
 signal to_rom : ToROM;
 signal from_rom : FromROM;
 
@@ -285,6 +289,7 @@ begin
 		spi_active<='0';
 		divert_sdcard<='1';
 		ser_rxrecv<='1';
+		diskbutton_reg<='0';
 	elsif rising_edge(clk) then
 		soft_reset_n<='1';
 		mem_busy<='1';
@@ -292,6 +297,10 @@ begin
 		ser_txgo2<='0';
 		spi_trigger<='0';
 
+		if diskbutton='0' then
+			diskbutton_reg<='1';
+		end if;
+		
 		mem_rd_d<=mem_rd;
 		mem_wr_d<=mem_wr;
 		
@@ -300,6 +309,10 @@ begin
 			case cpu_addr(31)&cpu_addr(10 downto 8) is
 				when X"F" =>	-- Peripherals at 0xFFFFFFF00
 					case cpu_addr(7 downto 0) is
+
+						when X"B0" => -- Interrupt
+							diskbutton_reg<='0';
+							mem_busy<='0';
 
 						when X"C0" => -- Debug UART
 							ser_txdata2<=from_cpu(7 downto 0);
@@ -343,6 +356,12 @@ begin
 
 				when X"F" =>	-- Peripherals
 					case cpu_addr(7 downto 0) is
+					
+						when X"B0" => -- Interrupt
+							from_mem<=(others=>'0');
+							from_mem(0)<=diskbutton_reg and diskbutton;
+							mem_busy<='0';
+
 						when X"C0" => -- Debug UART
 							from_mem<=(others=>'X');
 							from_mem(9 downto 0)<=ser_rxrecv&ser_txready2&ser_rxdata;
