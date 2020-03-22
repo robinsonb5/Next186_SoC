@@ -16,6 +16,8 @@
 #define HW_DATACHANNEL(x) (*(volatile unsigned int *)(DATACHANNEL+x))
 #define DC_HANDSHAKE 0x100
 
+// Commands below 0x100 come from the core's BIOS
+
 #define DC_FDREADBLOCK 0x2
 #define DC_FDWRITEBLOCK 0x3
 #define DC_FDVERIFYBLOCK 0x4
@@ -30,6 +32,13 @@
 #define DC_BOOTSTRAP 0xFD
 #define DC_DEBUG 0xFE
 #define DC_NOP 0xFF
+
+
+// Commands above 0x100 are external events from the toplevel.
+
+#define DC_FLIPDISK 0x1000 
+
+
 
 #define SYSTEMBASE 0xFFFFFFC8
 #define HW_SYSTEM(x) *(volatile unsigned int *)(SYSTEMBASE+x)
@@ -47,14 +56,29 @@ void _break();
 extern fileTYPE file;
 extern unsigned char sector_buffer[512];       // sector buffer
 char filename[12];
+int fileserialdigits;
+int fileserialoffset;
 
 static int parity;
+static int flipdisk;
 
-int dc_handshake()
+int dc_handshake(int idle)
 {
+	static int flipdisk=0;
 	int t;
 	while(((t=HW_DATACHANNEL(0))&DC_HANDSHAKE)==parity)
-		;
+	{
+		if(HW_INTERRUPT(REG_INTERRUPT_CTRL)&1)
+		{
+			flipdisk=1;
+			HW_INTERRUPT(REG_INTERRUPT_CTRL)=0; // Clear latch
+		}
+		if(idle && flipdisk)
+		{
+			flipdisk=0;
+			return(DC_FLIPDISK);
+		}
+	}
 	parity^=DC_HANDSHAKE;
 	return(t&~DC_HANDSHAKE);
 }
@@ -86,6 +110,52 @@ static void puthex(int val)
 		putchar('0');
 }
 
+
+void findfileserial()
+{
+	int i;
+	fileserialoffset=-1;
+	fileserialdigits=1;
+	for(i=0;i<8;++i)
+	{
+		if(filename[i]>='0' && filename[i]<='9')
+		{
+			if(fileserialoffset<0)
+				fileserialoffset=i;
+			else
+				++fileserialdigits;
+		}
+	}
+	puts("File "); puthex(fileserialoffset); puts("digits: "); puthex(fileserialdigits);
+}
+
+
+void nextimgfile()
+{
+	if(fileserialoffset)
+	{
+		int i=fileserialdigits-1;
+		while(i>=0 && filename[fileserialoffset+i]=='9')
+		{
+			filename[fileserialoffset+i]='0';
+			--i;
+		}
+		if(i>=0)
+			++filename[fileserialoffset+i];
+		puts(filename);
+		if(!FileOpen(&file,filename))
+		{
+			i=fileserialdigits-1;
+			filename[fileserialoffset+i]='1';
+			while(--i>=0)
+				filename[fileserialoffset+i]='0';
+			FileOpen(&file,filename)
+		}
+		puts(filename);
+	}
+}
+
+
 int main(int argc,char **argv)
 {
 	int t;
@@ -104,13 +174,7 @@ int main(int argc,char **argv)
 		while(1)
 		{
 			int result=0;
-			int cmd=dc_handshake();
-
-			if(HW_INTERRUPT(REG_INTERRUPT_CTRL)&1)
-			{
-				puts("flip disk\n");
-				HW_INTERRUPT(REG_INTERRUPT_CTRL)=0; // Clear latch
-			}
+			int cmd=dc_handshake(1); // Idling, external events are allowed.
 
 			switch(cmd)
 			{
@@ -121,7 +185,7 @@ int main(int argc,char **argv)
 				case DC_SETIMAGE:
 					for(i=0;i<12;++i)
 					{
-						dc_send(0); filename[i]=dc_handshake();
+						dc_send(0); filename[i]=dc_handshake(0);
 					}
 					filename[11]=0;
 					puts(filename);
@@ -129,13 +193,13 @@ int main(int argc,char **argv)
 					{
 		
 						dc_send(0);
-						dc_handshake();				
+						dc_handshake(0);				
 						dc_send(0);
 					}
 					else
 					{
 						dc_send(0xff);
-						dc_handshake();
+						dc_handshake(0);
 						dc_send(0xff);
 						puts("FErr ");
 					}
@@ -143,18 +207,18 @@ int main(int argc,char **argv)
 
 				case DC_DEBUG:
 					dc_send(DC_DEBUG);
-					putchar(dc_handshake());
+					putchar(dc_handshake(0));
 					putchar(' ');
 					dc_send(DC_DEBUG);
 					break;
 
 				case DC_WRITEBLOCK:
 				case DC_FDWRITEBLOCK:
-					dc_send(0); lba=dc_handshake()<<24;
-					dc_send(0); lba|=dc_handshake()<<16;
-					dc_send(0); lba|=dc_handshake()<<8;
-					dc_send(0); lba|=dc_handshake();
-					dc_send(0); count=dc_handshake();
+					dc_send(0); lba=dc_handshake(0)<<24;
+					dc_send(0); lba|=dc_handshake(0)<<16;
+					dc_send(0); lba|=dc_handshake(0)<<8;
+					dc_send(0); lba|=dc_handshake(0);
+					dc_send(0); count=dc_handshake(0);
 
 					putchar('W');
 					puthex(count);
@@ -171,7 +235,7 @@ int main(int argc,char **argv)
 						for(i=0;i<512;++i)
 						{
 							dc_send(0);
-							*ptr++=dc_handshake();
+							*ptr++=dc_handshake(0);
 						}
 						if(cmd==DC_FDWRITEBLOCK)
 							FileWrite(&file,sector_buffer);
@@ -187,11 +251,11 @@ int main(int argc,char **argv)
 				case DC_FDVERIFYBLOCK:
 				case DC_READBLOCK:
 				case DC_FDREADBLOCK:
-					dc_send(0); lba=dc_handshake()<<24;
-					dc_send(0); lba|=dc_handshake()<<16;
-					dc_send(0); lba|=dc_handshake()<<8;
-					dc_send(0); lba|=dc_handshake();
-					dc_send(0); count=dc_handshake();
+					dc_send(0); lba=dc_handshake(0)<<24;
+					dc_send(0); lba|=dc_handshake(0)<<16;
+					dc_send(0); lba|=dc_handshake(0)<<8;
+					dc_send(0); lba|=dc_handshake(0);
+					dc_send(0); count=dc_handshake(0);
 
 					putchar('R');
 					puthex(count);
@@ -217,7 +281,7 @@ int main(int argc,char **argv)
 							for(i=0;i<512;++i)
 							{
 								dc_send(0);
-								if(*ptr++!=dc_handshake())
+								if(*ptr++!=dc_handshake(0))
 									result=0xff;
 							}
 						}
@@ -226,7 +290,7 @@ int main(int argc,char **argv)
 							for(i=0;i<512;++i)
 							{
 								dc_send(*ptr++);
-								dc_handshake();
+								dc_handshake(0);
 							}
 						}
 						putchar('.');
@@ -238,12 +302,18 @@ int main(int argc,char **argv)
 				case DC_READCAPACITY:
 					puts("RCAP ");
 					dc_send(sd_size>>24);
-					dc_handshake();
+					dc_handshake(0);
 					dc_send(sd_size>>16);
-					dc_handshake();
+					dc_handshake(0);
 					dc_send(sd_size>>8);
-					dc_handshake();
+					dc_handshake(0);
 					dc_send(sd_size);
+					break;
+
+
+				case DC_FLIPDISK:
+					puts("Flip ");
+					nextimgfile();
 					break;
 
 				default:
