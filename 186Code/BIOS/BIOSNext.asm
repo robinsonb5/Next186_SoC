@@ -431,6 +431,10 @@ COMFlush:
 ; ---------------------   HDD init
 ; AMR - we let the host deal with the SD card - so we just read the capacity in sdinit.
 
+		mov     ax,word ptr ds:[72h]
+		cmp		ax,1234h    ; warm boot flag?
+		jz		skipsdinit
+
 		push	ds
 		call    sdinit
 		call	fdinit
@@ -441,6 +445,7 @@ COMFlush:
 		or	ax,bx
 		pop	ds
 		mov	HDSize, ax
+skipsdinit:
 		push    cs
 		pop     es
 		mov     si, offset biosmsg
@@ -4054,8 +4059,8 @@ fdinit	proc near
 		push	ds
 		push	cs
 		pop	ds
-		mov	si,fdimgname
 
+		mov	si,fdimgname
 		mov	al,DC_SETIMAGE ; DC_SETIMAGE
 		call	dc_hi
 imgnameloop:

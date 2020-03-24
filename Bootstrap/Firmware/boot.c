@@ -132,6 +132,7 @@ void findfileserial()
 
 void nextimgfile()
 {
+	findfileserial();
 	if(fileserialoffset)
 	{
 		int i=fileserialdigits-1;
@@ -149,7 +150,7 @@ void nextimgfile()
 			filename[fileserialoffset+i]='1';
 			while(--i>=0)
 				filename[fileserialoffset+i]='0';
-			FileOpen(&file,filename)
+			FileOpen(&file,filename);
 		}
 		puts(filename);
 	}
@@ -170,6 +171,8 @@ int main(int argc,char **argv)
 	{
 		puts("Part ");
 		FindDrive();
+
+		fdinit=FileOpen(&file,"NEXTBOOTIMG");	// On reset restore the default boot image
 
 		while(1)
 		{

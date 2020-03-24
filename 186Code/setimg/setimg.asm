@@ -72,7 +72,7 @@ done:
 	mov   al,0
 	stosb
 
-	; Ask the control module to open an FD image file.  If this fails we'll disable floppy support.
+	; Ask the control module to open an FD image file.
 	mov   si,imgname
 
 	mov	  al,DC_SETIMAGE ; DC_SETIMAGE
@@ -106,22 +106,22 @@ imgname:
 ; --- host datachannel ---
 
 dc_hi:
-		mov	ah,1
-		out	3fh,ax
+	mov	ah,1
+	out	3fh,ax
 _dc_hi_loop:
-		in	ax,3fh
-		test	ax,100h
-		je	_dc_hi_loop
-		ret
+	in	ax,3fh
+	test	ax,100h
+	je	_dc_hi_loop
+	ret
 
 dc_lo:
-		mov	ah,0
-		out	3fh,ax
+	mov	ah,0
+	out	3fh,ax
 _dc_lo_loop:
-		in	ax,3fh
-		test	ax,100h
-		jne	_dc_lo_loop
-		ret
+	in	ax,3fh
+	test	ax,100h
+	jne	_dc_lo_loop
+	ret
 
 msgsending:
 	db 'sending $'
