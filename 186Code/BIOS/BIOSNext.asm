@@ -217,8 +217,6 @@ msgkb       db 'PS2 KB detected', 13, 10, 0
 
 		org 0e062h ; 5b
 coldboot:
-	; FIXME - avoid re-querying the SDCard's capacity here
-warmboot:
 		cli
 		cld
 		mov     ax, 30h
@@ -302,9 +300,11 @@ mapi1:
 		pop     es
 		xor     di, di
 		xor     si, si
+		mov		bx,word ptr[si+72h]
 		xor     ax, ax
 		mov     cl, 80h
 		rep     stosw
+		mov		word ptr [si+72h], bx	 ; Preserve the warmboot flag.
 		mov		word ptr [si+00h], 3f8h	 ; COM1 base port address
 		mov		word ptr [si+08h], 378h	 ; LPT1 base port address
 		mov     byte ptr [si+10h], 24h   ; equipment word (color 80x25, PS2 mouse present)
@@ -431,13 +431,8 @@ COMFlush:
 ; ---------------------   HDD init
 ; AMR - we let the host deal with the SD card - so we just read the capacity in sdinit.
 
-		mov     ax,word ptr ds:[72h]
-		cmp		ax,1234h    ; warm boot flag?
-		jz		skipsdinit
-
 		push	ds
 		call    sdinit
-		call	fdinit
 		mov	ax,HDSize_lo
 		mov	bx,HDSize_hi
 		shr	ax,10
@@ -445,7 +440,15 @@ COMFlush:
 		or	ax,bx
 		pop	ds
 		mov	HDSize, ax
-skipsdinit:
+
+		mov     ax,word ptr ds:[72h]
+		cmp		ax,1234h    ; warm boot flag?
+		jz		skipfdinit
+		push	ds
+		call	fdinit
+		pop	ds
+skipfdinit:
+		mov     word ptr ds:[72h],0h	; clear warmboot flag
 		push    cs
 		pop     es
 		mov     si, offset biosmsg
