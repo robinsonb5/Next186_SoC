@@ -62,6 +62,8 @@ int fileserialoffset;
 static int parity;
 static int flipdisk;
 
+static int fdmounted=0;
+
 int dc_handshake(int idle)
 {
 	static int flipdisk=0;
@@ -144,13 +146,13 @@ void nextimgfile()
 		if(i>=0)
 			++filename[fileserialoffset+i];
 		puts(filename);
-		if(!FileOpen(&file,filename))
+		if(!(fdmounted=FileOpen(&file,filename)))
 		{
 			i=fileserialdigits-1;
 			filename[fileserialoffset+i]='1';
 			while(--i>=0)
 				filename[fileserialoffset+i]='0';
-			FileOpen(&file,filename);
+			fdmounted=FileOpen(&file,filename);
 		}
 		puts(filename);
 	}
@@ -163,7 +165,6 @@ int main(int argc,char **argv)
 	int i;
 	int lba;
 	int count;
-	int fdinit=0;
 	parity=0;
 
 	puts("SDInit ");
@@ -172,7 +173,7 @@ int main(int argc,char **argv)
 		puts("Part ");
 		FindDrive();
 
-		fdinit=FileOpen(&file,"NEXTBOOTIMG");	// On reset restore the default boot image
+		fdmounted=FileOpen(&file,"NEXTBOOTIMG");	// On reset restore the default boot image
 
 		while(1)
 		{
@@ -192,7 +193,7 @@ int main(int argc,char **argv)
 					}
 					filename[11]=0;
 					puts(filename);
-					if(fdinit=FileOpen(&file,filename))
+					if(fdmounted=FileOpen(&file,filename))
 					{
 		
 						dc_send(0);
@@ -232,7 +233,7 @@ int main(int argc,char **argv)
 					while(count--)
 					{
 						unsigned char *ptr=(unsigned char *)sector_buffer;
-						if(cmd==DC_FDWRITEBLOCK)	// Must do this before receiving data,
+						if(fdmounted && cmd==DC_FDWRITEBLOCK)	// Must do this before receiving data,
 							FileSeek(&file,lba++);	// since it trashes the sector buffer!
 
 						for(i=0;i<512;++i)
@@ -241,12 +242,18 @@ int main(int argc,char **argv)
 							*ptr++=dc_handshake(0);
 						}
 						if(cmd==DC_FDWRITEBLOCK)
-							FileWrite(&file,sector_buffer);
+						{
+							putchar('F');
+							if(fdmounted)
+								FileWrite(&file,sector_buffer);
+							else
+								result=0xaa; /* Drive not ready */
+						}
 						else
 							sd_write_sector(lba++,sector_buffer);
 						putchar('.');
 					}
-					dc_send(0); // Error code
+					dc_send(result); // Error code
 				
 					break;
 
@@ -271,9 +278,14 @@ int main(int argc,char **argv)
 						unsigned char *ptr=sector_buffer;
 						if(cmd==DC_FDREADBLOCK)
  						{
-							// FIXME - send error if there's no fdimage.
-							FileSeek(&file,lba++);
-							FileRead(&file,sector_buffer);
+							putchar('F');
+							if(fdmounted)
+							{
+								FileSeek(&file,lba++);
+								FileRead(&file,sector_buffer);
+							}
+							else
+								result=0xaa; /* Drive not ready */
 						}
 						else
 						{

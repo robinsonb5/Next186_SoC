@@ -2557,7 +2557,7 @@ Disk1:
 		push    ds
 		call    cs:disktbl[bp]
 		pop     ds
-exit:        
+exit:
 		mov     HDLastError, ah
 exit2:
 		xor     byte ptr HDOpStarted, 8
@@ -3688,17 +3688,26 @@ int19 proc near
 ;		call	dbghex
 ;		mov	al,FDPresent
 ;		call	dbghex
-		mov     ax, 201h
-		mov     cx, 1
-		mov	dh,0
-		mov	dl,FDPresent
-		and     dl, 80h	; FDPresent is ff if no image is present - in which case we boot from HD.
-doboot:
+;		mov	dl,FDPresent
+;		and     dl, 80h	; FDPresent is ff if no image is present - in which case we boot from HD.
+
 		push    0
 		pop     es
+		mov     ax, 201h
+		mov     cx, 1
+		mov     dh,0
+		mov		dl,00h	; Try fd first...
+		mov     bx, 7c00h
+		int     13h
+		jnc     int19boot
+		mov     ax, 201h
+		mov     cx, 1
+		mov     dh,0
+		mov		dl,80h	; Fall back to hd...
 		mov     bx, 7c00h
 		int     13h
 		jc      int19err
+int19boot:
 		db      0eah
 		dw      7c00h, 0     ; jmp far 0000h:7c00h
 int19err:
@@ -3987,13 +3996,20 @@ _readsectorloop:
 		call 	dc_lo
 		dec	cx
 		jne	_readsectorloop
-
+		pop cx	
+		mov	ch,al
+		and	al,al
+		jz readok
+		mov	cl,0
+readok:
 		mov	al,DC_NOP 	; NOP
 		call	dc_hi	; Error code - should respond to this...
 		mov	al,DC_NOP 	; NOP
 		call	dc_lo	; restore parity
 
-		pop ax
+		mov	ax,cx
+		call	dbghex
+		mov	ax,cx
 		ret
 
 fdverify:
