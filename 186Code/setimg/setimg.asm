@@ -75,17 +75,17 @@ done:
 	; Ask the control module to open an FD image file.
 	mov   si,imgname
 
+	mov	  cl,6
 	mov	  al,DC_SETIMAGE ; DC_SETIMAGE
 	call  dc_hi
 sendimgnameloop:
 	lodsb
-	test  al,al
-	jz	short imgnamesent
 	call  dc_lo
 	lodsb
 	call  dc_hi
-	jmp	short sendimgnameloop
-imgnamesent:
+	sub	  cl,1
+	jnz   short sendimgnameloop
+DOSimgnamesent:
 	call  dc_lo	; Get response
 	mov	  dx,msgok
 	and   al,al
